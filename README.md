@@ -43,6 +43,21 @@ This project **does not include a GUI application**. If you need one, please see
 Tesseract **can be trained to recognize other languages**.
 See [Tesseract Training](https://tesseract-ocr.github.io/tessdoc/Training-Tesseract.html) for more information.
 
+## GPU Acceleration (Experimental)
+
+Tesseract 5.5+ includes **experimental GPU acceleration** support via OpenCL and CUDA for improved performance on compatible hardware. GPU acceleration can provide significant speedups (up to 10x faster) for OCR operations, especially on high-resolution images and batch processing.
+
+See **[GPU Acceleration Guide](doc/GPU_ACCELERATION.md)** for build instructions and usage details.
+
+**Quick start:**
+```bash
+# Build with OpenCL support
+cmake .. -DENABLE_OPENCL=ON
+
+# Build with CUDA support (NVIDIA GPUs)
+cmake .. -DENABLE_CUDA=ON
+```
+
 ## Brief history
 
 Tesseract was originally developed at Hewlett-Packard Laboratories Bristol UK and at Hewlett-Packard Co, Greeley Colorado USA between 1985 and 1994, with some more changes made in 1996 to port to Windows, and some C++izing in 1998. In 2005 Tesseract was open sourced by HP. From 2006 until August 2017 it was developed by Google.

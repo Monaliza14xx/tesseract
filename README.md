@@ -140,6 +140,8 @@ It is suggested to use leptonica with built-in support for [zlib](https://zlib.n
 [png](https://sourceforge.net/projects/libpng) and
 [tiff](http://www.simplesystems.org/libtiff) (for multipage tiff).
 
+**For detailed installation instructions for Leptonica and other dependencies, see [doc/DEPENDENCIES.md](doc/DEPENDENCIES.md)**
+
 ## Latest Version of README
 
 For the latest online version of the README.md see:

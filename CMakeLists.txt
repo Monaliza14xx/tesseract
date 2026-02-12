@@ -556,7 +556,33 @@ else()
     link_directories(${Leptonica_LIBRARY_DIRS})
   endif()
   if(NOT Leptonica_FOUND)
-    message(FATAL_ERROR "Cannot find required library Leptonica. Quitting!")
+    message(FATAL_ERROR "
+    ========================================================================
+    Cannot find required library Leptonica ${MINIMUM_LEPTONICA_VERSION} or later!
+    ========================================================================
+    
+    Leptonica is required to build Tesseract. Please install it first:
+    
+    Ubuntu/Debian:
+      sudo apt-get update
+      sudo apt-get install libleptonica-dev
+    
+    macOS:
+      brew install leptonica
+    
+    Fedora/CentOS/RHEL:
+      sudo dnf install leptonica-devel
+    
+    Windows (vcpkg):
+      vcpkg install leptonica
+    
+    Or build from source:
+      https://github.com/DanBloomberg/leptonica
+    
+    For more information, see:
+      https://tesseract-ocr.github.io/tessdoc/Compiling.html
+    ========================================================================
+    ")
   else()
     message(STATUS "Found leptonica version: ${Leptonica_VERSION}")
   endif(NOT Leptonica_FOUND)

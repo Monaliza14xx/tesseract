@@ -6,7 +6,11 @@ the configure script.
 If you have tesseract 4.0x installation in your system, please remove it
 before new build.
 
-You need Leptonica 1.74.2 (minimum) for Tesseract 4.0x.
+## Dependencies
+
+You need Leptonica 1.74.2 (minimum) for Tesseract 4.0x and later.
+
+**For detailed dependency installation instructions, see [doc/DEPENDENCIES.md](doc/DEPENDENCIES.md)**
 
 Known dependencies for training tools (excluding leptonica):
 

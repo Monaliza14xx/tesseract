@@ -62,7 +62,7 @@ __kernel void matmul_int8(
     }
     
     // Add bias (at index num_inputs)
-    sum += (float)w_row[num_inputs] * 127.0f;
+    sum += (float)w_row[num_inputs] * 127.0f;  // INT8_MAX
     
     // Apply scale factor
     output[out_idx] = sum * scales[out_idx];

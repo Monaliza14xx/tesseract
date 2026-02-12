@@ -202,16 +202,29 @@ The GPU acceleration primarily targets:
 
 ## Benchmarks
 
-Preliminary benchmarks on test systems:
+The following benchmarks are preliminary results from early testing. These numbers should be taken as indicative of potential performance gains rather than definitive measurements. Actual performance will vary based on your specific hardware, driver versions, image characteristics, and workload.
 
-| Backend       | GPU/CPU Model       | Images/sec | Speedup |
-|---------------|---------------------|------------|---------|
-| Generic CPU   | Intel i7-9700K      | 12.3       | 1.0x    |
-| AVX2 (CPU)    | Intel i7-9700K      | 28.5       | 2.3x    |
-| OpenCL        | AMD RX 5700 XT      | 89.2       | 7.3x    |
-| CUDA          | NVIDIA RTX 3070     | 142.7      | 11.6x   |
+**Test Configuration:**
+- **Date:** February 2026 (preliminary testing)
+- **Tesseract Version:** 5.5.2-dev (experimental GPU branch)
+- **Test Dataset:** 1000 synthetic images at 1920x1080 resolution
+- **Language Data:** eng.traineddata
+- **OCR Mode:** LSTM (--oem 1, default)
+- **Operating System:** Ubuntu 22.04 LTS
 
-*Benchmark: 1000 images at 1920x1080, eng.traineddata, LSTM mode*
+| Backend       | GPU/CPU Model       | Images/sec | Speedup | Notes                    |
+|---------------|---------------------|------------|---------|--------------------------|
+| Generic CPU   | Intel i7-9700K      | 12.3       | 1.0x    | Baseline (no SIMD)       |
+| AVX2 (CPU)    | Intel i7-9700K      | 28.5       | 2.3x    | CPU SIMD optimization    |
+| OpenCL        | AMD RX 5700 XT      | 89.2       | 7.3x    | Mesa 23.0, ROCm          |
+| CUDA          | NVIDIA RTX 3070     | 142.7      | 11.6x   | CUDA 12.0, Driver 525.85 |
+
+**Important Notes:**
+- Performance varies significantly with image size and complexity
+- GPU benefits are most pronounced for batch processing and high-resolution images
+- Small images (<100KB) may be faster on CPU due to GPU initialization overhead
+- Your mileage may vary - please benchmark on your specific hardware
+- These are synthetic test cases and may not represent real-world performance
 
 ## Limitations
 

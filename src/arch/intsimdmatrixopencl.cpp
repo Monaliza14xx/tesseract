@@ -47,21 +47,22 @@ __kernel void matmul_int8(
     __global float* output,
     __global const float* scales,
     const int num_inputs,
-    const int num_outputs
+    const int num_outputs,
+    const int weight_width
 ) {
     int out_idx = get_global_id(0);
     if (out_idx >= num_outputs) return;
     
     float sum = 0.0f;
-    __global const char* w_row = weights + out_idx * (num_inputs + 1);
+    __global const char* w_row = weights + out_idx * weight_width;
     
-    // Compute dot product
+    // Compute dot product (num_inputs excludes bias)
     for (int i = 0; i < num_inputs; i++) {
         sum += (float)w_row[i] * input[i];
     }
     
-    // Add bias (last element in weight row)
-    sum += (float)w_row[num_inputs];
+    // Add bias (at index num_inputs)
+    sum += (float)w_row[num_inputs] * 127.0f;
     
     // Apply scale factor
     output[out_idx] = sum * scales[out_idx];
@@ -197,8 +198,8 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   cl_int err;
   
   // Create buffers
-  size_t weights_size = dim1 * (dim2 + 1) * sizeof(int8_t);
-  size_t input_size = dim2 * sizeof(TFloat);
+  size_t weights_size = dim1 * dim2 * sizeof(int8_t);
+  size_t input_size = (dim2 - 1) * sizeof(TFloat);
   size_t output_size = dim1 * sizeof(TFloat);
   size_t scales_size = dim1 * sizeof(TFloat);
   
@@ -220,28 +221,77 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   }
   
   // Convert int8 input to float for OpenCL kernel
-  std::vector<TFloat> u_float(dim2);
-  for (int i = 0; i < dim2; i++) {
+  std::vector<TFloat> u_float(dim2 - 1);  // Exclude bias
+  for (int i = 0; i < dim2 - 1; i++) {
     u_float[i] = static_cast<TFloat>(u[i]);
   }
   
   cl_mem input_buf = clCreateBuffer(opencl_ctx.context,
                                    CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                    input_size, u_float.data(), &err);
+  if (err != CL_SUCCESS) {
+    clReleaseMemObject(weights_buf);
+    // Fall back to CPU implementation
+    for (int i = 0; i < dim1; ++i) {
+      const int8_t* w_row = wi + i * dim2;
+      int total = 0;
+      for (int j = 0; j < dim2 - 1; ++j) {
+        total += w_row[j] * u[j];
+      }
+      total += w_row[dim2 - 1] * INT8_MAX;
+      v[i] = static_cast<TFloat>(total) * scales[i];
+    }
+    return;
+  }
+  
   cl_mem output_buf = clCreateBuffer(opencl_ctx.context,
                                     CL_MEM_WRITE_ONLY,
                                     output_size, nullptr, &err);
+  if (err != CL_SUCCESS) {
+    clReleaseMemObject(weights_buf);
+    clReleaseMemObject(input_buf);
+    // Fall back to CPU implementation
+    for (int i = 0; i < dim1; ++i) {
+      const int8_t* w_row = wi + i * dim2;
+      int total = 0;
+      for (int j = 0; j < dim2 - 1; ++j) {
+        total += w_row[j] * u[j];
+      }
+      total += w_row[dim2 - 1] * INT8_MAX;
+      v[i] = static_cast<TFloat>(total) * scales[i];
+    }
+    return;
+  }
+  
   cl_mem scales_buf = clCreateBuffer(opencl_ctx.context,
                                     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                     scales_size, const_cast<TFloat*>(scales), &err);
+  if (err != CL_SUCCESS) {
+    clReleaseMemObject(weights_buf);
+    clReleaseMemObject(input_buf);
+    clReleaseMemObject(output_buf);
+    // Fall back to CPU implementation
+    for (int i = 0; i < dim1; ++i) {
+      const int8_t* w_row = wi + i * dim2;
+      int total = 0;
+      for (int j = 0; j < dim2 - 1; ++j) {
+        total += w_row[j] * u[j];
+      }
+      total += w_row[dim2 - 1] * INT8_MAX;
+      v[i] = static_cast<TFloat>(total) * scales[i];
+    }
+    return;
+  }
   
   // Set kernel arguments
+  int num_inputs = dim2 - 1;  // Exclude bias from input count
   clSetKernelArg(opencl_ctx.kernel, 0, sizeof(cl_mem), &weights_buf);
   clSetKernelArg(opencl_ctx.kernel, 1, sizeof(cl_mem), &input_buf);
   clSetKernelArg(opencl_ctx.kernel, 2, sizeof(cl_mem), &output_buf);
   clSetKernelArg(opencl_ctx.kernel, 3, sizeof(cl_mem), &scales_buf);
-  clSetKernelArg(opencl_ctx.kernel, 4, sizeof(int), &dim2);
+  clSetKernelArg(opencl_ctx.kernel, 4, sizeof(int), &num_inputs);
   clSetKernelArg(opencl_ctx.kernel, 5, sizeof(int), &dim1);
+  clSetKernelArg(opencl_ctx.kernel, 6, sizeof(int), &dim2);
   
   // Execute kernel
   size_t global_work_size = dim1;

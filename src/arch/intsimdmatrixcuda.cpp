@@ -42,21 +42,22 @@ __global__ void matmul_int8_kernel(
     float* output,
     const float* scales,
     int num_inputs,
-    int num_outputs
+    int num_outputs,
+    int weight_width
 ) {
     int out_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (out_idx >= num_outputs) return;
     
     float sum = 0.0f;
-    const int8_t* w_row = weights + out_idx * (num_inputs + 1);
+    const int8_t* w_row = weights + out_idx * weight_width;
     
-    // Compute dot product
+    // Compute dot product (num_inputs excludes bias)
     for (int i = 0; i < num_inputs; i++) {
         sum += static_cast<float>(w_row[i]) * input[i];
     }
     
-    // Add bias (last element in weight row)
-    sum += static_cast<float>(w_row[num_inputs]);
+    // Add bias (at index num_inputs)
+    sum += static_cast<float>(w_row[num_inputs]) * 127.0f;
     
     // Apply scale factor
     output[out_idx] = sum * scales[out_idx];
@@ -115,8 +116,8 @@ static void MatrixDotVectorCUDA(int dim1, int dim2, const int8_t* wi,
   float* d_output = nullptr;
   float* d_scales = nullptr;
   
-  size_t weights_size = dim1 * (dim2 + 1) * sizeof(int8_t);
-  size_t input_size = dim2 * sizeof(float);
+  size_t weights_size = dim1 * dim2 * sizeof(int8_t);
+  size_t input_size = (dim2 - 1) * sizeof(float);
   size_t output_size = dim1 * sizeof(float);
   size_t scales_size = dim1 * sizeof(float);
   
@@ -138,14 +139,43 @@ static void MatrixDotVectorCUDA(int dim1, int dim2, const int8_t* wi,
   }
   
   err = cudaMalloc(&d_input, input_size);
-  err = cudaMalloc(&d_output, output_size);
-  err = cudaMalloc(&d_scales, scales_size);
+  if (err != cudaSuccess) {
+    cudaFree(d_weights);
+    // Fall back to CPU implementation
+    for (int i = 0; i < dim1; ++i) {
+      const int8_t* w_row = wi + i * dim2;
+      int total = 0;
+      for (int j = 0; j < dim2 - 1; ++j) {
+        total += w_row[j] * u[j];
+      }
+      total += w_row[dim2 - 1] * INT8_MAX;
+      v[i] = static_cast<TFloat>(total) * scales[i];
+    }
+    return;
+  }
   
+  err = cudaMalloc(&d_output, output_size);
+  if (err != cudaSuccess) {
+    cudaFree(d_weights);
+    cudaFree(d_input);
+    // Fall back to CPU implementation
+    for (int i = 0; i < dim1; ++i) {
+      const int8_t* w_row = wi + i * dim2;
+      int total = 0;
+      for (int j = 0; j < dim2 - 1; ++j) {
+        total += w_row[j] * u[j];
+      }
+      total += w_row[dim2 - 1] * INT8_MAX;
+      v[i] = static_cast<TFloat>(total) * scales[i];
+    }
+    return;
+  }
+  
+  err = cudaMalloc(&d_scales, scales_size);
   if (err != cudaSuccess) {
     cudaFree(d_weights);
     cudaFree(d_input);
     cudaFree(d_output);
-    cudaFree(d_scales);
     // Fall back to CPU implementation
     for (int i = 0; i < dim1; ++i) {
       const int8_t* w_row = wi + i * dim2;
@@ -160,8 +190,8 @@ static void MatrixDotVectorCUDA(int dim1, int dim2, const int8_t* wi,
   }
   
   // Convert int8 input to float for CUDA kernel
-  std::vector<float> u_float(dim2);
-  for (int i = 0; i < dim2; i++) {
+  std::vector<float> u_float(dim2 - 1);  // Exclude bias
+  for (int i = 0; i < dim2 - 1; i++) {
     u_float[i] = static_cast<float>(u[i]);
   }
   
@@ -173,8 +203,9 @@ static void MatrixDotVectorCUDA(int dim1, int dim2, const int8_t* wi,
   // Launch kernel
   int block_size = 256;
   int num_blocks = (dim1 + block_size - 1) / block_size;
+  int num_inputs = dim2 - 1;  // Exclude bias from input count
   matmul_int8_kernel<<<num_blocks, block_size>>>(
-      d_weights, d_input, d_output, d_scales, dim2, dim1);
+      d_weights, d_input, d_output, d_scales, num_inputs, dim1, dim2);
   
   // Copy result back to host
   std::vector<float> v_float(dim1);

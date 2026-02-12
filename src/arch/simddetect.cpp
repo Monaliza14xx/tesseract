@@ -266,6 +266,25 @@ SIMDDetect::SIMDDetect() {
 #  endif
 #endif
 
+  // GPU detection - must occur before backend selection
+#if defined(HAVE_OPENCL)
+  // Check for OpenCL availability
+  cl_uint num_platforms = 0;
+  cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+  if (err == CL_SUCCESS && num_platforms > 0) {
+    opencl_available_ = true;
+  }
+#endif
+
+#if defined(HAVE_CUDA)
+  // Check for CUDA availability
+  int device_count = 0;
+  cudaError_t cuda_err = cudaGetDeviceCount(&device_count);
+  if (cuda_err == cudaSuccess && device_count > 0) {
+    cuda_available_ = true;
+  }
+#endif
+
   // Select code for calculation of dot product based on autodetection.
   // Prefer GPU acceleration if available, then fall back to CPU SIMD
   if (false) {
@@ -310,25 +329,6 @@ SIMDDetect::SIMDDetect() {
     SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixRVV);
 #endif
   }
-
-  // GPU detection
-#if defined(HAVE_OPENCL)
-  // Check for OpenCL availability
-  cl_uint num_platforms = 0;
-  cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
-  if (err == CL_SUCCESS && num_platforms > 0) {
-    opencl_available_ = true;
-  }
-#endif
-
-#if defined(HAVE_CUDA)
-  // Check for CUDA availability
-  int device_count = 0;
-  cudaError_t cuda_err = cudaGetDeviceCount(&device_count);
-  if (cuda_err == cudaSuccess && device_count > 0) {
-    cuda_available_ = true;
-  }
-#endif
 
   const char *dotproduct_env = getenv("DOTPRODUCT");
   if (dotproduct_env != nullptr) {

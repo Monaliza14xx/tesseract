@@ -2,6 +2,8 @@
 
 This guide will help you get Tesseract installed and running on your system quickly.
 
+> **⚡ In a hurry?** Check the [Installation Cheat Sheet (INSTALL_CHEATSHEET.md)](INSTALL_CHEATSHEET.md) for one-command installations!
+
 ## Table of Contents
 - [Quick Installation (Recommended for Most Users)](#quick-installation-recommended-for-most-users)
 - [Building from Source](#building-from-source)

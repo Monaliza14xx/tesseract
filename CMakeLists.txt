@@ -96,6 +96,49 @@ if(APPLE AND NOT CMAKE_SYSTEM_PROCESSOR AND CMAKE_OSX_ARCHITECTURES)
   message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' from CMAKE_OSX_ARCHITECTURES")
 endif()
 
+# Fallback detection for CMAKE_SYSTEM_PROCESSOR if empty (can happen in containers/CI)
+if(NOT CMAKE_SYSTEM_PROCESSOR OR CMAKE_SYSTEM_PROCESSOR STREQUAL "")
+  message(STATUS "CMAKE_SYSTEM_PROCESSOR is empty, attempting to detect...")
+  
+  # Try to detect using uname on Unix-like systems
+  if(UNIX)
+    execute_process(
+      COMMAND uname -m
+      OUTPUT_VARIABLE DETECTED_PROCESSOR
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+    )
+    if(DETECTED_PROCESSOR)
+      set(CMAKE_SYSTEM_PROCESSOR "${DETECTED_PROCESSOR}" CACHE STRING "Target processor" FORCE)
+      message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' from uname")
+    endif()
+  endif()
+  
+  # If still empty, try compiler predefined macros as last resort
+  if(NOT CMAKE_SYSTEM_PROCESSOR OR CMAKE_SYSTEM_PROCESSOR STREQUAL "")
+    # Check common compiler predefined macros for architecture
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      # 64-bit build
+      if(WIN32)
+        set(CMAKE_SYSTEM_PROCESSOR "x86_64" CACHE STRING "Target processor" FORCE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' (64-bit Windows assumed)")
+      else()
+        set(CMAKE_SYSTEM_PROCESSOR "x86_64" CACHE STRING "Target processor" FORCE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' (64-bit assumed)")
+      endif()
+    else()
+      # 32-bit build
+      if(WIN32)
+        set(CMAKE_SYSTEM_PROCESSOR "x86" CACHE STRING "Target processor" FORCE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' (32-bit Windows assumed)")
+      else()
+        set(CMAKE_SYSTEM_PROCESSOR "i686" CACHE STRING "Target processor" FORCE)
+        message(STATUS "CMAKE_SYSTEM_PROCESSOR set to '${CMAKE_SYSTEM_PROCESSOR}' (32-bit assumed)")
+      endif()
+    endif()
+  endif()
+endif()
+
 option(OPENMP_BUILD "Build with openmp support" OFF) # see issue #1662
 option(GRAPHICS_DISABLED "Disable disable graphics (ScrollView)" OFF)
 option(DISABLED_LEGACY_ENGINE "Disable the legacy OCR engine" OFF)

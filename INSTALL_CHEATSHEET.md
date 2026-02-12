@@ -61,14 +61,18 @@ tesseract --help
 
 ### Ubuntu/Debian
 ```bash
-# Install dependencies
+# Install dependencies (basic build)
 sudo apt-get install -y build-essential cmake pkg-config libleptonica-dev
+
+# For training tools, also install:
+# sudo apt-get install -y libpango1.0-dev libcairo2-dev libarchive-dev libcurl4-openssl-dev
 
 # Clone and build
 git clone https://github.com/tesseract-ocr/tesseract.git
 cd tesseract
 mkdir build && cd build
 cmake ..
+# Or without training tools: cmake .. -DBUILD_TRAINING_TOOLS=OFF
 make -j$(nproc)
 sudo make install
 sudo ldconfig
@@ -81,14 +85,18 @@ sudo mv eng.traineddata /usr/local/share/tessdata/
 
 ### macOS
 ```bash
-# Install dependencies
+# Install dependencies (basic build)
 brew install cmake pkg-config leptonica
+
+# For training tools, also install:
+# brew install pango cairo libarchive curl
 
 # Clone and build
 git clone https://github.com/tesseract-ocr/tesseract.git
 cd tesseract
 mkdir build && cd build
 cmake ..
+# Or without training tools: cmake .. -DBUILD_TRAINING_TOOLS=OFF
 make -j$(sysctl -n hw.ncpu)
 sudo make install
 
@@ -103,6 +111,16 @@ sudo mv eng.traineddata /usr/local/share/tessdata/
 **Command not found?**
 ```bash
 which tesseract  # Check if installed
+```
+
+**Missing Pango/Cairo for training tools?**
+```bash
+# Option 1: Install dependencies
+sudo apt-get install libpango1.0-dev libcairo2-dev  # Ubuntu/Debian
+brew install pango cairo  # macOS
+
+# Option 2: Build without training tools
+cmake .. -DBUILD_TRAINING_TOOLS=OFF
 ```
 
 **Missing language data?**

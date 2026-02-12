@@ -409,6 +409,52 @@ if(ICU_FOUND)
   if(PKG_CONFIG_FOUND OR SW_BUILD)
 
     if(PKG_CONFIG_FOUND)
+      # Check if Pango packages are available before the required check
+      pkg_check_modules(PANGO_CHECK pango>=1.38.0 cairo pangoft2 pangocairo fontconfig)
+      
+      if(NOT PANGO_CHECK_FOUND)
+        message(FATAL_ERROR "
+    ========================================================================
+    Cannot find required packages for building training tools!
+    ========================================================================
+    
+    The following packages are required for training tools:
+      - pango >= 1.38.0
+      - cairo
+      - pangoft2
+      - pangocairo
+      - fontconfig
+    
+    OPTION 1: Install the required packages
+    ----------------------------------------
+    
+    Ubuntu/Debian:
+      sudo apt-get update
+      sudo apt-get install libpango1.0-dev libcairo2-dev
+    
+    macOS:
+      brew install pango cairo
+    
+    Fedora/CentOS/RHEL:
+      sudo dnf install pango-devel cairo-devel
+    
+    Windows (vcpkg):
+      vcpkg install pango cairo
+    
+    OPTION 2: Skip building training tools
+    ----------------------------------------
+    
+    If you don't need training tools, you can disable them:
+      cmake .. -DBUILD_TRAINING_TOOLS=OFF
+    
+    For more information, see:
+      - doc/DEPENDENCIES.md
+      - QUICKSTART.md
+    ========================================================================
+    ")
+      endif()
+      
+      # Now do the actual required check
       pkg_check_modules(
         PANGO
         REQUIRED

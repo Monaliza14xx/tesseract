@@ -47,9 +47,9 @@ sudo make install
 # Compiler and build tools
 sudo apt-get install build-essential cmake pkg-config
 
-# Optional dependencies for training tools
+# For training tools (optional - skip if using -DBUILD_TRAINING_TOOLS=OFF)
+sudo apt-get install libpango1.0-dev libcairo2-dev
 sudo apt-get install libarchive-dev libcurl4-openssl-dev
-sudo apt-get install libpango1.0-dev
 sudo apt-get install autoconf automake libtool
 
 # For TIFF support
@@ -68,7 +68,9 @@ sudo apt-get install libjpeg-dev
 brew install cmake pkg-config
 brew install leptonica
 brew install autoconf automake
-brew install libarchive curl pango
+
+# For training tools (optional - skip if using -DBUILD_TRAINING_TOOLS=OFF)
+brew install pango cairo libarchive curl
 
 # Optional: ICU for training tools
 brew install icu4c
@@ -78,8 +80,10 @@ brew install icu4c
 ```bash
 sudo dnf install gcc-c++ cmake pkgconfig
 sudo dnf install leptonica-devel
+
+# For training tools (optional - skip if using -DBUILD_TRAINING_TOOLS=OFF)
+sudo dnf install pango-devel cairo-devel
 sudo dnf install libarchive-devel libcurl-devel
-sudo dnf install pango-devel
 ```
 
 ## Building Tesseract
@@ -95,6 +99,17 @@ make
 sudo make install
 ```
 
+### Building Without Training Tools
+
+If you don't need training tools and want to avoid installing Pango/Cairo dependencies:
+```bash
+mkdir build
+cd build
+cmake .. -DBUILD_TRAINING_TOOLS=OFF
+make
+sudo make install
+```
+
 ### Using Autotools
 ```bash
 ./autogen.sh
@@ -105,6 +120,19 @@ sudo ldconfig
 ```
 
 ## Troubleshooting
+
+### "Cannot find required packages for building training tools"
+This means Pango, Cairo, or related packages are not installed. You have two options:
+
+**Option 1: Install the packages**
+- Ubuntu/Debian: `sudo apt-get install libpango1.0-dev libcairo2-dev`
+- macOS: `brew install pango cairo`
+- Fedora: `sudo dnf install pango-devel cairo-devel`
+
+**Option 2: Build without training tools**
+```bash
+cmake .. -DBUILD_TRAINING_TOOLS=OFF
+```
 
 ### "Cannot find required library Leptonica"
 This means Leptonica is not installed or CMake cannot find it. Install libleptonica-dev (Ubuntu/Debian) or leptonica (macOS/vcpkg).

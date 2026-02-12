@@ -81,19 +81,26 @@ sudo apt-get install -y \
   cmake \
   pkg-config \
   libleptonica-dev \
-  libarchive-dev \
-  libcurl4-openssl-dev \
-  libpango1.0-dev \
   autoconf \
   automake \
   libtool
+
+# For training tools (optional):
+sudo apt-get install -y \
+  libpango1.0-dev \
+  libcairo2-dev \
+  libarchive-dev \
+  libcurl4-openssl-dev
 ```
 
 **macOS:**
 ```bash
 # Install dependencies
 brew install cmake pkg-config leptonica \
-  autoconf automake libtool pango
+  autoconf automake libtool
+
+# For training tools (optional):
+brew install pango cairo libarchive curl
 ```
 
 **Windows:**
@@ -132,6 +139,14 @@ make -j$(nproc)
 sudo make install
 
 # Update library cache (Linux only)
+sudo ldconfig
+```
+
+**To build without training tools** (avoids Pango/Cairo dependencies):
+```bash
+cmake .. -DBUILD_TRAINING_TOOLS=OFF
+make -j$(nproc)
+sudo make install
 sudo ldconfig
 ```
 
@@ -313,6 +328,39 @@ tesseract --version
 ### "Cannot find required library Leptonica"
 
 **Solution:**
+- Install Leptonica library:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install libleptonica-dev
+  
+  # macOS
+  brew install leptonica
+  ```
+- See [doc/DEPENDENCIES.md](doc/DEPENDENCIES.md) for detailed instructions
+
+### "Cannot find required packages for building training tools"
+
+**Solution:**
+You have two options:
+
+**Option 1: Install Pango and Cairo**
+```bash
+# Ubuntu/Debian
+sudo apt-get install libpango1.0-dev libcairo2-dev
+
+# macOS
+brew install pango cairo
+
+# Fedora/RHEL
+sudo dnf install pango-devel cairo-devel
+```
+
+**Option 2: Build without training tools**
+```bash
+cmake .. -DBUILD_TRAINING_TOOLS=OFF
+```
+
+Note: Training tools are only needed if you want to train custom Tesseract models. Most users don't need them.
 - Install Leptonica library:
   ```bash
   # Ubuntu/Debian

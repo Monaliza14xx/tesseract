@@ -7,9 +7,14 @@
 [![GitHub license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://raw.githubusercontent.com/tesseract-ocr/tesseract/main/LICENSE)
 [![Downloads](https://img.shields.io/badge/download-all%20releases-brightgreen.svg)](https://github.com/tesseract-ocr/tesseract/releases/)
 
+## 🚀 Quick Start
+
+**New to Tesseract?** Check out the **[Quick Start Installation Guide (QUICKSTART.md)](QUICKSTART.md)** for step-by-step instructions to get up and running quickly!
+
 ## Table of Contents
 
 * [Tesseract OCR](#tesseract-ocr)
+  * [Quick Start](#-quick-start)
   * [About](#about)
   * [Brief history](#brief-history)
   * [Installing Tesseract](#installing-tesseract)

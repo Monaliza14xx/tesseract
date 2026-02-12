@@ -68,6 +68,16 @@ public:
     return detector.rvv_available_;
   }
 
+  // Returns true if OpenCL is available on this system.
+  static inline bool IsOpenCLAvailable() {
+    return detector.opencl_available_;
+  }
+
+  // Returns true if CUDA is available on this system.
+  static inline bool IsCUDAAvailable() {
+    return detector.cuda_available_;
+  }
+
   // Update settings after config variable was set.
   static TESS_API void Update();
 
@@ -92,6 +102,10 @@ private:
   static TESS_API bool neon_available_;
   // If true, then RVV has been detected.
   static TESS_API bool rvv_available_;
+  // If true, then OpenCL has been detected.
+  static TESS_API bool opencl_available_;
+  // If true, then CUDA has been detected.
+  static TESS_API bool cuda_available_;
 };
 
 } // namespace tesseract

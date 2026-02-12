@@ -71,6 +71,18 @@
 #  endif
 #endif
 
+#if defined(HAVE_OPENCL)
+#  ifdef __APPLE__
+#    include <OpenCL/opencl.h>
+#  else
+#    include <CL/cl.h>
+#  endif
+#endif
+
+#if defined(HAVE_CUDA)
+#  include <cuda_runtime.h>
+#endif
+
 namespace tesseract {
 
 // Computes and returns the dot product of the two n-vectors u and v.
@@ -109,6 +121,10 @@ bool SIMDDetect::fma_available_;
 // If true, then SSe4.1 has been detected.
 bool SIMDDetect::sse_available_;
 #endif
+
+// GPU availability flags
+bool SIMDDetect::opencl_available_ = false;
+bool SIMDDetect::cuda_available_ = false;
 
 #if defined(HAVE_FRAMEWORK_ACCELERATE)
 static TFloat DotProductAccelerate(const TFloat* u, const TFloat* v, int n) {
@@ -251,8 +267,19 @@ SIMDDetect::SIMDDetect() {
 #endif
 
   // Select code for calculation of dot product based on autodetection.
+  // Prefer GPU acceleration if available, then fall back to CPU SIMD
   if (false) {
     // This is a dummy to support conditional compilation.
+#if defined(HAVE_CUDA)
+  } else if (cuda_available_) {
+    // CUDA GPU detected - highest priority for performance
+    SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixCUDA);
+#endif
+#if defined(HAVE_OPENCL)
+  } else if (opencl_available_) {
+    // OpenCL GPU detected
+    SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixOpenCL);
+#endif
 #if defined(HAVE_AVX512F)
   } else if (avx512F_available_) {
     // AVX512F detected.
@@ -284,6 +311,25 @@ SIMDDetect::SIMDDetect() {
 #endif
   }
 
+  // GPU detection
+#if defined(HAVE_OPENCL)
+  // Check for OpenCL availability
+  cl_uint num_platforms = 0;
+  cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+  if (err == CL_SUCCESS && num_platforms > 0) {
+    opencl_available_ = true;
+  }
+#endif
+
+#if defined(HAVE_CUDA)
+  // Check for CUDA availability
+  int device_count = 0;
+  cudaError_t cuda_err = cudaGetDeviceCount(&device_count);
+  if (cuda_err == cudaSuccess && device_count > 0) {
+    cuda_available_ = true;
+  }
+#endif
+
   const char *dotproduct_env = getenv("DOTPRODUCT");
   if (dotproduct_env != nullptr) {
     // Override automatic settings by value from environment variable.
@@ -306,6 +352,18 @@ void SIMDDetect::Update() {
     // Native optimized code selected by config variable.
     SetDotProduct(DotProductNative, IntSimdMatrix::intSimdMatrix);
     dotproduct_method = "native";
+#if defined(HAVE_CUDA)
+  } else if (dotproduct == "cuda" && cuda_available_) {
+    // CUDA selected by config variable.
+    SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixCUDA);
+    dotproduct_method = "cuda";
+#endif
+#if defined(HAVE_OPENCL)
+  } else if (dotproduct == "opencl" && opencl_available_) {
+    // OpenCL selected by config variable.
+    SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixOpenCL);
+    dotproduct_method = "opencl";
+#endif
 #if defined(HAVE_AVX2)
   } else if (dotproduct == "avx2") {
     // AVX2 selected by config variable.
@@ -350,6 +408,12 @@ void SIMDDetect::Update() {
             dotproduct.c_str());
     tprintf(
         "Supported values for dotproduct: auto generic native"
+#if defined(HAVE_CUDA)
+        " cuda"
+#endif
+#if defined(HAVE_OPENCL)
+        " opencl"
+#endif
 #if defined(HAVE_AVX2)
         " avx2"
 #endif

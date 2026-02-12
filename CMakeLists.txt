@@ -119,6 +119,10 @@ option(ENABLE_PRECOMPILED_HEADERS "Enable precompiled headers for faster compila
 option(ENABLE_CCACHE "Enable ccache for faster incremental builds" ON)
 option(ENABLE_NINJA_POOL "Enable Ninja job pools to manage parallelism" ON)
 
+# GPU acceleration options
+option(ENABLE_OPENCL "Enable OpenCL GPU support for improved performance" OFF)
+option(ENABLE_CUDA "Enable CUDA GPU support for improved performance" OFF)
+
 
 # ##############################################################################
 #
@@ -291,6 +295,44 @@ endif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86|x86_64|AMD64|amd64|i386|i686")
 if(HAVE_NEON)
   message(STATUS "LTO build is not supported on arm/RBPi.")
   set(ENABLE_LTO FALSE)  # enable LTO cause fatal error on arm/RBPi
+endif()
+
+# ##############################################################################
+#
+# GPU acceleration detection
+#
+# ##############################################################################
+
+if(ENABLE_OPENCL)
+  find_package(OpenCL)
+  if(OpenCL_FOUND)
+    message(STATUS "OpenCL found: ${OpenCL_VERSION_STRING}")
+    set(HAVE_OPENCL ON)
+    add_definitions(-DHAVE_OPENCL)
+  else()
+    message(WARNING "OpenCL requested but not found. GPU acceleration will be disabled.")
+    set(HAVE_OPENCL OFF)
+  endif()
+else()
+  set(HAVE_OPENCL OFF)
+endif()
+
+if(ENABLE_CUDA)
+  find_package(CUDAToolkit)
+  if(CUDAToolkit_FOUND)
+    message(STATUS "CUDA found: ${CUDAToolkit_VERSION}")
+    set(HAVE_CUDA ON)
+    add_definitions(-DHAVE_CUDA)
+    # Enable CUDA language support
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+  else()
+    message(WARNING "CUDA requested but not found. GPU acceleration will be disabled.")
+    set(HAVE_CUDA OFF)
+  endif()
+else()
+  set(HAVE_CUDA OFF)
 endif()
 
 # Compiler specific environment
@@ -789,6 +831,14 @@ if(HAVE_NEON)
       PROPERTIES COMPILE_FLAGS ${NEON_COMPILE_FLAGS})
   endif()
 endif(HAVE_NEON)
+if(HAVE_OPENCL)
+  list(APPEND arch_files_opt src/arch/intsimdmatrixopencl.cpp)
+endif(HAVE_OPENCL)
+if(HAVE_CUDA)
+  list(APPEND arch_files_opt src/arch/intsimdmatrixcuda.cpp)
+  set_source_files_properties(src/arch/intsimdmatrixcuda.cpp
+                              PROPERTIES LANGUAGE CUDA)
+endif(HAVE_CUDA)
 
 # Use explicit header file lists from SourceLists.cmake
 set(TESSERACT_HDR ${TESSERACT_HDR_INCLUDE} ${TESSERACT_HDR_INTERNAL})
@@ -931,6 +981,12 @@ if(CURL_FOUND)
     target_link_libraries(libtesseract PUBLIC ${CURL_LIBRARIES})
   endif()
 endif(CURL_FOUND)
+if(HAVE_OPENCL)
+  target_link_libraries(libtesseract PUBLIC OpenCL::OpenCL)
+endif(HAVE_OPENCL)
+if(HAVE_CUDA)
+  target_link_libraries(libtesseract PUBLIC CUDA::cudart)
+endif(HAVE_CUDA)
 
 set_target_properties(
   libtesseract PROPERTIES VERSION

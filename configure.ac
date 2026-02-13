@@ -275,6 +275,27 @@ if test "$enable_legacy" = "no"; then
   AC_DEFINE([DISABLED_LEGACY_ENGINE], [1], [Disable legacy OCR engine])
 fi
 
+# check whether to build with OpenCL support
+AC_MSG_CHECKING([--enable-opencl argument])
+AC_ARG_ENABLE([opencl],
+  AS_HELP_STRING([--enable-opencl], [enable OpenCL GPU support for improved performance]))
+AC_MSG_RESULT([$enable_opencl])
+AM_CONDITIONAL([ENABLE_OPENCL], test "$enable_opencl" = "yes")
+if test "$enable_opencl" = "yes"; then
+  # Check for OpenCL headers and libraries
+  AC_CHECK_HEADERS([CL/cl.h OpenCL/opencl.h], [have_opencl_headers=yes; break], [have_opencl_headers=no])
+  if test "$have_opencl_headers" = "yes"; then
+    AC_SEARCH_LIBS([clGetPlatformIDs], [OpenCL], [have_opencl_lib=yes], [have_opencl_lib=no])
+    if test "$have_opencl_lib" = "yes"; then
+      AC_DEFINE([HAVE_OPENCL], [1], [Enable OpenCL GPU support])
+    else
+      AC_MSG_ERROR([OpenCL library not found. Install OpenCL development files or use --disable-opencl])
+    fi
+  else
+    AC_MSG_ERROR([OpenCL headers not found. Install OpenCL development files or use --disable-opencl])
+  fi
+fi
+
 # check whether to build OpenMP support
 AC_OPENMP
 

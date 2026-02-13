@@ -31,6 +31,24 @@ So, the steps for making Tesseract are:
     make training
     sudo make training-install
 
+**Building with OpenCL GPU Support:**
+
+To build Tesseract with OpenCL support for GPU acceleration:
+
+    ./autogen.sh
+    ./configure --enable-opencl
+    make
+    sudo make install
+    sudo ldconfig
+
+Requirements: Install OpenCL development files first:
+```bash
+# Ubuntu/Debian
+sudo apt-get install opencl-headers ocl-icd-opencl-dev
+```
+
+See [doc/GPU_ACCELERATION.md](doc/GPU_ACCELERATION.md) for more information.
+
 You need to install at least English language and OSD traineddata files to
 `TESSDATA_PREFIX` directory.
 

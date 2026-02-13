@@ -152,6 +152,7 @@ sudo ldconfig
 
 **For GPU acceleration (OpenCL or CUDA):**
 ```bash
+# OpenCL support
 cmake .. -DENABLE_OPENCL=ON
 # or
 cmake .. -DENABLE_CUDA=ON
@@ -179,6 +180,23 @@ sudo ldconfig
 make training
 sudo make training-install
 ```
+
+**For GPU acceleration with OpenCL:**
+```bash
+./autogen.sh
+./configure --enable-opencl
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+**Note:** Install OpenCL development files first:
+```bash
+# Ubuntu/Debian
+sudo apt-get install opencl-headers ocl-icd-opencl-dev
+```
+
+See [doc/GPU_ACCELERATION.md](doc/GPU_ACCELERATION.md) for more details.
 
 ### Step 3: Download Language Data
 

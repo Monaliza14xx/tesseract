@@ -208,6 +208,15 @@ libtesseract_la_LIBADD += libtesseract_rvv.la
 noinst_LTLIBRARIES += libtesseract_rvv.la
 endif
 
+if ENABLE_OPENCL
+libtesseract_opencl_la_CXXFLAGS = -O3
+libtesseract_opencl_la_CXXFLAGS += -I$(top_srcdir)/src/ccutil
+libtesseract_opencl_la_SOURCES = src/arch/intsimdmatrixopencl.cpp
+libtesseract_opencl_la_LDFLAGS = -lOpenCL
+libtesseract_la_LIBADD += libtesseract_opencl.la
+noinst_LTLIBRARIES += libtesseract_opencl.la
+endif
+
 libtesseract_la_SOURCES += src/arch/intsimdmatrix.cpp
 libtesseract_la_SOURCES += src/arch/simddetect.cpp
 

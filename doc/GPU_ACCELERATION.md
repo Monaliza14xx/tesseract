@@ -15,12 +15,26 @@ Tesseract now includes experimental GPU acceleration support through OpenCL and 
 
 ### OpenCL Support
 
-To build Tesseract with OpenCL support:
+#### Using CMake (Recommended)
+
+To build Tesseract with OpenCL support using CMake:
 
 ```bash
 mkdir build && cd build
 cmake .. -DENABLE_OPENCL=ON
 make -j$(nproc)
+sudo make install
+```
+
+#### Using Autotools
+
+To build Tesseract with OpenCL support using autotools:
+
+```bash
+./autogen.sh
+./configure --enable-opencl
+make -j$(nproc)
+sudo make install
 ```
 
 Requirements:
@@ -44,6 +58,8 @@ mkdir build && cd build
 cmake .. -DENABLE_CUDA=ON
 make -j$(nproc)
 ```
+
+**Note:** CUDA support is currently only available via CMake build system.
 
 Requirements:
 - NVIDIA CUDA Toolkit 11.0 or later

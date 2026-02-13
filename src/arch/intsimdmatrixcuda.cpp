@@ -85,6 +85,18 @@ struct CUDAContext {
     }
     
     initialized = true;
+    
+    // Get device name and info for success logging  
+    int device_id;
+    cudaGetDevice(&device_id);
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, device_id);
+    
+    // Log success with device information
+    tprintf("CUDA: Successfully initialized on GPU device: %s (%.1f GB)\n",
+            prop.name,
+            prop.totalGlobalMem / (1024.0 * 1024.0 * 1024.0));
+    
     return true;
   }
 };

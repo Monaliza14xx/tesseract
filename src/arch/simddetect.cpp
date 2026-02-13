@@ -298,11 +298,13 @@ SIMDDetect::SIMDDetect() {
   } else if (cuda_available_) {
     // CUDA GPU detected - highest priority for performance
     SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixCUDA);
+    tprintf("Using CUDA GPU acceleration for matrix operations\n");
 #endif
 #if defined(HAVE_OPENCL)
   } else if (opencl_available_) {
     // OpenCL GPU detected
     SetDotProduct(DotProductGeneric, &IntSimdMatrix::intSimdMatrixOpenCL);
+    tprintf("Using OpenCL GPU acceleration for matrix operations\n");
 #endif
 #if defined(HAVE_AVX512F)
   } else if (avx512F_available_) {

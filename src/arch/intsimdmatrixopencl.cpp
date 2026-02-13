@@ -176,6 +176,26 @@ struct OpenCLContext {
     }
     
     initialized = true;
+    
+    // Get device name and info for success logging
+    char device_name[256] = "Unknown";
+    clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(device_name), device_name, nullptr);
+    
+    // Get device global memory size
+    cl_ulong mem_size = 0;
+    clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(mem_size), &mem_size, nullptr);
+    
+    // Determine if GPU or CPU
+    cl_device_type dev_type;
+    clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, nullptr);
+    const char* dev_type_str = (dev_type == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU";
+    
+    // Log success with device information
+    tprintf("OpenCL: Successfully initialized on %s device: %s (%.1f GB)\n",
+            dev_type_str,
+            device_name,
+            mem_size / (1024.0 * 1024.0 * 1024.0));
+    
     return true;
   }
 };

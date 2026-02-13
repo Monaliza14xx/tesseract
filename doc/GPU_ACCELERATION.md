@@ -40,6 +40,7 @@ sudo make install
 Requirements:
 - OpenCL headers and libraries installed
 - Compatible OpenCL driver (AMD, Intel, or NVIDIA)
+- OpenCL 1.2 or later (Tesseract targets OpenCL 1.2 for maximum compatibility)
 
 **Linux (Debian/Ubuntu):**
 ```bash

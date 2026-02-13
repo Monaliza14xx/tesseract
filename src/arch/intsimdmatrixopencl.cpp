@@ -20,6 +20,12 @@
 
 #if defined(HAVE_OPENCL)
 
+// Define target OpenCL version before including headers
+// Using OpenCL 1.2 (version 120) for maximum compatibility
+#  ifndef CL_TARGET_OPENCL_VERSION
+#    define CL_TARGET_OPENCL_VERSION 120
+#  endif
+
 #  ifdef __APPLE__
 #    include <OpenCL/opencl.h>
 #  else

@@ -113,13 +113,38 @@ tesseract image.png output
 
 ### Verify GPU Usage
 
-Check which backend is being used:
+When Tesseract successfully initializes GPU acceleration, you'll see confirmation messages:
+
+**OpenCL:**
+```
+OpenCL: Successfully initialized on GPU device: Tesla T4 (15.0 GB)
+Using OpenCL GPU acceleration for matrix operations
+```
+
+**CUDA:**
+```
+CUDA: Successfully initialized on GPU device: Tesla T4 (15.0 GB)
+Using CUDA GPU acceleration for matrix operations
+```
+
+If GPU initialization fails, you'll see error messages and Tesseract will fall back to CPU SIMD:
+```
+OpenCL: Failed to get platform ID
+```
+
+**Additional verification methods:**
 
 ```bash
-# OpenCL will show "OpenCL found" message
-# CUDA will show "CUDA found" message
-tesseract --help-extra
+# Check Tesseract version and build flags
+tesseract --version
+
+# Monitor GPU usage during processing
+nvidia-smi  # For NVIDIA GPUs
+rocm-smi    # For AMD GPUs
+intel_gpu_top  # For Intel GPUs
 ```
+
+For LSTM training, GPU messages appear at the start of training before model loading.
 
 ## Performance Considerations
 

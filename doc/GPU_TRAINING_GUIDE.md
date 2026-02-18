@@ -444,6 +444,33 @@ Typical GPU memory requirements:
 
 ## Troubleshooting
 
+### Enable Verbose Debugging Mode
+
+Before diving into specific issues, enable verbose OpenCL logging to get detailed diagnostic information:
+
+```bash
+export TESSERACT_OPENCL_VERBOSE=1
+export TESSERACT_OPENCL_DEVICE="GPU:0"
+export OMP_THREAD_LIMIT=1
+
+lstmtraining --batch_size 500 ...
+```
+
+**Verbose output includes:**
+- OpenCL initialization details (platform, device selection)
+- Buffer creation and reuse tracking
+- Data transfer operations
+- Kernel execution status
+- All OpenCL errors with specific error codes
+- First 3 MatrixDotVector calls logged in detail
+
+**Key indicators to look for:**
+- ✅ **"MatrixDotVector call #1, #2, #3..."** - OpenCL is being invoked
+- ✅ **"Creating new ... buffer"** then **"Reusing ... buffer"** - Efficient memory management
+- ✅ **"Operation completed successfully"** - GPU operations working
+- ❌ **No MatrixDotVector messages** - Model not using int8 (see below)
+- ❌ **"Failed to..." with error code** - Specific OpenCL error
+
 ### Issue: GPU Shows 0% Utilization Despite OpenCL Message
 
 **Symptoms:**
@@ -519,6 +546,62 @@ This usually indicates the model is using float32 weights instead of int8 quanti
    # Rebuild with verbose output
    cmake .. -DENABLE_OPENCL=ON -DBUILD_TRAINING_TOOLS=ON -DCMAKE_VERBOSE_MAKEFILE=ON
    make VERBOSE=1
+   ```
+
+### Issue: Training Disconnects or Crashes
+
+**Symptoms:**
+- Training shows "[disconnected]" message
+- Training process exits unexpectedly
+- No GPU utilization despite OpenCL messages
+- nvidia-smi shows "No running processes"
+
+**Diagnosis with verbose mode:**
+```bash
+export TESSERACT_OPENCL_VERBOSE=1
+lstmtraining ... 2>&1 | tee training_debug.log
+```
+
+**Common causes:**
+
+1. **OpenCL initialization failure:**
+   - Look for "Failed to..." messages in verbose output
+   - Check: "Failed to create buffer" → GPU memory issue
+   - Check: "Failed to create context" → Driver issue
+   - Check: "Kernel execution failed" → Compute capability issue
+
+2. **Model not using int8:**
+   - If you see NO "MatrixDotVector call" messages
+   - GPU requires int8 quantized weights
+   - Solution: Use fine-tuning or ensure int8 conversion
+
+3. **Buffer allocation errors:**
+   - Look for "Failed to create ... buffer (error -61)" → Out of memory
+   - Solution: Reduce `--max_image_MB` or `--batch_size`
+
+4. **Driver/platform issues:**
+   - Check if multiple OpenCL platforms exist
+   - Try: `clinfo` to list all platforms and devices
+   - Ensure NVIDIA platform is being selected
+
+**Verification steps:**
+
+1. **Check verbose output for errors:**
+   ```bash
+   grep -i "failed\|error" training_debug.log
+   ```
+
+2. **Verify MatrixDotVector is being called:**
+   ```bash
+   grep "MatrixDotVector call" training_debug.log
+   # Should see: MatrixDotVector call #1, #2, #3, etc.
+   ```
+
+3. **Check GPU process appears:**
+   ```bash
+   # Start training, then in another terminal:
+   watch -n 0.5 nvidia-smi
+   # Should show process and GPU utilization
    ```
 
 ### Issue: GPU Memory Errors

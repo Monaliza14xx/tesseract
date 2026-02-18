@@ -128,7 +128,12 @@ bool LSTMTrainer::TryLoadingCheckpoint(const char *filename,
     return false;
   }
   TessdataManager old_mgr;
-  ASSERT_HOST(old_mgr.Init(old_traineddata));
+  if (!old_mgr.Init(old_traineddata)) {
+    tprintf("Error: Failed to initialize TessdataManager with old traineddata: %s\n",
+            old_traineddata);
+    tprintf("Please verify the old traineddata file exists and is valid.\n");
+    return false;
+  }
   TFile fp;
   if (!old_mgr.GetComponent(TESSDATA_LSTM_UNICHARSET, &fp)) {
     return false;

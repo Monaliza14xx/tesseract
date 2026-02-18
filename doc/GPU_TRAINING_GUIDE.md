@@ -304,12 +304,13 @@ ps aux | grep lstmtraining
 
 ## Performance Optimization
 
-### 1. Batch Size Configuration
+### 1. Batch Size and Checkpoint Configuration
 
-**NEW in this version:** The `--batch_size` parameter controls how many samples are processed between checkpoints:
+**NEW in this version:** Two separate parameters control training behavior:
 
+**`--batch_size`** - Controls GPU batch processing (affects performance):
 ```bash
-# Default (compatible with CPU training)
+# Default
 --batch_size 100
 
 # Optimized for OpenCL GPU
@@ -327,6 +328,20 @@ ps aux | grep lstmtraining
 - Reduced CPU-GPU transfer overhead
 - Higher training throughput
 - More efficient memory usage
+
+**`--checkpoint_interval`** - Controls checkpoint save frequency:
+```bash
+# Default - save every 100 iterations
+--checkpoint_interval 100
+
+# More frequent saves (safer, more disk I/O)
+--checkpoint_interval 50
+
+# Less frequent saves (faster, less disk I/O)
+--checkpoint_interval 200
+```
+
+**Note:** batch_size and checkpoint_interval are independent. Larger batch_size improves GPU performance, while checkpoint_interval controls how often progress is saved.
 
 **Guidelines:**
 - Start with 300-500 for most GPU configurations

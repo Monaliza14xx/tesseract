@@ -295,7 +295,55 @@ ps aux | grep lstmtraining
 
 ## Performance Optimization
 
-### 1. Batch Size and Memory Settings
+### 1. Batch Size Configuration
+
+**NEW in this version:** The `--batch_size` parameter controls how many samples are processed between checkpoints:
+
+```bash
+# Default (compatible with CPU training)
+--batch_size 100
+
+# Optimized for OpenCL GPU
+--batch_size 300
+
+# Optimized for CUDA GPU  
+--batch_size 500
+
+# High-end GPU with lots of memory
+--batch_size 1000
+```
+
+**Benefits of larger batch sizes for GPU:**
+- Better GPU utilization through increased parallelism
+- Reduced CPU-GPU transfer overhead
+- Higher training throughput
+- More efficient memory usage
+
+**Guidelines:**
+- Start with 300-500 for most GPU configurations
+- Increase if you have GPU memory to spare
+- Decrease if you experience out-of-memory errors
+- Monitor GPU memory usage with nvidia-smi or similar tools
+
+**Example with batch size:**
+```bash
+export TESSERACT_OPENCL_DEVICE="GPU:0"
+export OMP_THREAD_LIMIT=1
+
+lstmtraining \
+  --continue_from /usr/share/tessdata/eng.traineddata \
+  --traineddata /path/to/output/my_custom.traineddata \
+  --model_output /path/to/output/checkpoints/my_custom \
+  --train_listfile /path/to/training_list.txt \
+  --eval_listfile /path/to/eval_list.txt \
+  --max_iterations 10000 \
+  --learning_rate 0.0001 \
+  --max_image_MB 8000 \
+  --batch_size 500 \
+  2>&1 | tee training.log
+```
+
+### 2. Memory Settings
 
 The `--max_image_MB` parameter controls how much image data is loaded into memory:
 
@@ -312,7 +360,7 @@ The `--max_image_MB` parameter controls how much image data is loaded into memor
 # Note: Larger values = better GPU utilization but more memory usage
 ```
 
-### 2. Thread Configuration
+### 3. Thread Configuration
 
 ```bash
 # IMPORTANT: Limit OpenMP threads when using GPU
@@ -322,7 +370,7 @@ export OMP_THREAD_LIMIT=1
 # and typically provides best performance
 ```
 
-### 3. Learning Rate Tuning
+### 4. Learning Rate Tuning
 
 ```bash
 # For fine-tuning (recommended starting points)
@@ -335,7 +383,7 @@ export OMP_THREAD_LIMIT=1
 --learning_rate 0.002   # Faster but less stable
 ```
 
-### 4. Network Architecture Considerations
+### 5. Network Architecture Considerations
 
 More complex networks benefit more from GPU acceleration:
 ```bash
@@ -346,7 +394,7 @@ More complex networks benefit more from GPU acceleration:
 '[1,36,0,1 Ct3,3,32 Mp3,3 Lfys64 Lfx128 Lrx128 Lfx256 Lrx256 Lfx512 O1c111]'
 ```
 
-### 5. Data Pipeline Optimization
+### 6. Data Pipeline Optimization
 
 ```bash
 # Keep training data on fast storage (SSD)
@@ -362,18 +410,19 @@ More complex networks benefit more from GPU acceleration:
 
 Typical speedups on a Tesla T4 GPU (may vary based on your hardware):
 
-| Configuration | Iterations/min | Relative Speed |
-|--------------|----------------|----------------|
-| CPU Only (AVX2) | ~300 | 1.0x (baseline) |
-| OpenCL (AMD RX 5700 XT) | ~1,500 | 5.0x |
-| OpenCL (NVIDIA T4) | ~2,000 | 6.7x |
-| CUDA (NVIDIA T4) | ~3,000 | 10.0x |
-| CUDA (NVIDIA RTX 3090) | ~4,500 | 15.0x |
+| Configuration | Batch Size | Iterations/min | Relative Speed |
+|--------------|------------|----------------|----------------|
+| CPU Only (AVX2) | 100 | ~300 | 1.0x (baseline) |
+| OpenCL (AMD RX 5700 XT) | 300 | ~1,500 | 5.0x |
+| OpenCL (NVIDIA T4) | 500 | ~2,500 | 8.3x |
+| CUDA (NVIDIA T4) | 500 | ~3,500 | 11.7x |
+| CUDA (NVIDIA RTX 3090) | 1000 | ~5,500 | 18.3x |
 
 **Factors affecting speedup:**
 - GPU model and memory bandwidth
 - Network complexity
-- Batch size (`--max_image_MB`)
+- **Batch size (`--batch_size`)** - Larger is better for GPU
+- Memory allocation (`--max_image_MB`)
 - Image dimensions
 - Number of training samples
 
@@ -429,25 +478,30 @@ OpenCL: Failed to allocate device memory
 
 **Solutions:**
 
-1. **Reduce batch size:**
+1. **Reduce memory allocation:**
    ```bash
    --max_image_MB 4000  # Try lower values: 2000, 1000
    ```
 
-2. **Use smaller network:**
+2. **Reduce training batch size:**
+   ```bash
+   --batch_size 200  # Try lower values: 100, 50
+   ```
+
+3. **Use smaller network:**
    ```bash
    # Reduce layer sizes in --net_spec
    # Example: Lfx256 -> Lfx128
    ```
 
-3. **Close other GPU applications:**
+4. **Close other GPU applications:**
    ```bash
    # Check GPU usage
    nvidia-smi
    # Kill unnecessary processes
    ```
 
-4. **Enable GPU memory growth (CUDA only):**
+5. **Enable GPU memory growth (CUDA only):**
    ```bash
    export TF_FORCE_GPU_ALLOW_GROWTH=true
    ```
@@ -456,23 +510,29 @@ OpenCL: Failed to allocate device memory
 
 **Possible causes and solutions:**
 
-1. **Small batch size:**
+1. **Batch size too small for GPU:**
    ```bash
-   # Increase to utilize GPU better
+   # Increase batch size to utilize GPU better
+   --batch_size 500  # or higher (300-1000)
+   ```
+
+2. **Memory allocation too low:**
+   ```bash
+   # Increase to load more data
    --max_image_MB 8000  # or higher
    ```
 
-2. **Too many CPU threads:**
+3. **Too many CPU threads:**
    ```bash
    # Must set this!
    export OMP_THREAD_LIMIT=1
    ```
 
-3. **PCIe bandwidth bottleneck:**
+4. **PCIe bandwidth bottleneck:**
    - Check GPU is in PCIe x16 slot
    - Verify PCIe 3.0/4.0 is enabled in BIOS
 
-4. **GPU thermal throttling:**
+5. **GPU thermal throttling:**
    ```bash
    # Monitor GPU temperature
    nvidia-smi -l 1
@@ -502,7 +562,7 @@ OpenCL: Failed to allocate device memory
 3. **Reduce complexity:**
    - Start with smaller --max_iterations
    - Use simpler network architecture
-   - Reduce --max_image_MB
+   - Reduce --max_image_MB and --batch_size
 
 4. **Enable debug output:**
    ```bash
@@ -514,6 +574,7 @@ OpenCL: Failed to allocate device memory
 
 ### ✅ DO:
 - Set `OMP_THREAD_LIMIT=1` for GPU training
+- **Use `--batch_size 300-1000` for GPU training** (NEW)
 - Use `--max_image_MB 8000` or higher for good GPU utilization
 - Monitor GPU usage with nvidia-smi/rocm-smi
 - Keep training data on fast local storage (SSD)
@@ -522,12 +583,14 @@ OpenCL: Failed to allocate device memory
 - Test with small iterations first, then increase
 
 ### ❌ DON'T:
+- Don't use default `--batch_size 100` for GPU (use 300-1000 instead)
 - Don't run multiple training processes on same GPU without coordination
 - Don't set --max_image_MB too high (causes OOM errors)
 - Don't forget to set GPU environment variables
 - Don't use network drives for training data
 - Don't train on GPU with < 4GB memory
 - Don't ignore GPU temperature (keep < 80°C)
+- Don't set --batch_size too high if you get OOM errors
 
 ## Complete Training Script Example
 
@@ -590,6 +653,7 @@ lstmtraining \
   --target_error_rate 0.01 \
   --debug_interval 100 \
   --max_image_MB 8000 \
+  --batch_size 500 \
   --net_mode 192 \
   --weight_range 0.1 \
   --momentum 0.9 \

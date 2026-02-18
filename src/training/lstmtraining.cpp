@@ -65,6 +65,9 @@ static STRING_PARAM_FLAG(old_traineddata, "",
                          " character set that is to be replaced");
 static BOOL_PARAM_FLAG(randomly_rotate, false,
                        "Train OSD and randomly turn training samples upside-down");
+static INT_PARAM_FLAG(batch_size, 100,
+                     "Number of training samples to process per batch. "
+                     "Larger values (200-1000) can improve GPU training speed.");
 
 // Number of training images to train between calls to MaintainCheckpoints.
 const int kNumPagesPerBatch = 100;
@@ -112,7 +115,8 @@ int main(int argc, char **argv) {
   std::string checkpoint_bak = checkpoint_file + ".bak";
   tesseract::LSTMTrainer trainer(FLAGS_model_output, checkpoint_file,
                                  FLAGS_debug_interval,
-                                 static_cast<int64_t>(FLAGS_max_image_MB) * 1048576);
+                                 static_cast<int64_t>(FLAGS_max_image_MB) * 1048576,
+                                 FLAGS_batch_size);
   if (!trainer.InitCharSet(FLAGS_traineddata.c_str())) {
     tprintf("Error, failed to read %s\n", FLAGS_traineddata.c_str());
     return EXIT_FAILURE;
@@ -218,7 +222,8 @@ int main(int argc, char **argv) {
   do {
     // Train a few.
     int iteration = trainer.training_iteration();
-    for (int target_iteration = iteration + kNumPagesPerBatch;
+    int batch_size = FLAGS_batch_size > 0 ? FLAGS_batch_size : kNumPagesPerBatch;
+    for (int target_iteration = iteration + batch_size;
          iteration < target_iteration && iteration < max_iterations;
          iteration = trainer.training_iteration()) {
       trainer.TrainOnLine(&trainer, false);

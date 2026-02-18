@@ -86,7 +86,8 @@ public:
   LSTMTrainer();
   LSTMTrainer(const std::string &model_base,
               const std::string &checkpoint_name,
-              int debug_interval, int64_t max_memory);
+              int debug_interval, int64_t max_memory,
+              int batch_size = 100);
   virtual ~LSTMTrainer();
 
   // Tries to deserialize a trainer from the given file and silently returns
@@ -168,6 +169,9 @@ public:
   }
   DocumentCache *mutable_training_data() {
     return &training_data_;
+  }
+  int batch_size() const {
+    return batch_size_;
   }
 
   // If the training sample is usable, grid searches for the optimal
@@ -412,6 +416,8 @@ protected:
 #endif
   // How often to display a debug image.
   int debug_interval_;
+  // Number of samples to process per batch.
+  int batch_size_;
   // Iteration at which the last checkpoint was dumped.
   int checkpoint_iteration_;
   // Basename of files to save best models to.

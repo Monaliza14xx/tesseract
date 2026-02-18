@@ -75,15 +75,17 @@ LSTMTrainer::LSTMTrainer()
     : randomly_rotate_(false), training_data_(0), sub_trainer_(nullptr) {
   EmptyConstructor();
   debug_interval_ = 0;
+  batch_size_ = 100;
 }
 
 LSTMTrainer::LSTMTrainer(const std::string &model_base, const std::string &checkpoint_name,
-                         int debug_interval, int64_t max_memory)
+                         int debug_interval, int64_t max_memory, int batch_size)
     : randomly_rotate_(false),
       training_data_(max_memory),
       sub_trainer_(nullptr) {
   EmptyConstructor();
   debug_interval_ = debug_interval;
+  batch_size_ = batch_size > 0 ? batch_size : 100;
   model_base_ = model_base;
   checkpoint_name_ = checkpoint_name;
 }
@@ -622,7 +624,7 @@ SubTrainerResult LSTMTrainer::UpdateSubtrainer(std::stringstream &log_msg) {
     while (sub_trainer_->training_iteration() < end_iteration &&
            sub_margin >= kSubTrainerMarginFraction) {
       int target_iteration =
-          sub_trainer_->training_iteration() + kNumPagesPerBatch;
+          sub_trainer_->training_iteration() + batch_size_;
       while (sub_trainer_->training_iteration() < target_iteration) {
         sub_trainer_->TrainOnLine(this, false);
       }

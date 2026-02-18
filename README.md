@@ -48,6 +48,8 @@ This project **does not include a GUI application**. If you need one, please see
 Tesseract **can be trained to recognize other languages**.
 See [Tesseract Training](https://tesseract-ocr.github.io/tessdoc/Training-Tesseract.html) for more information.
 
+**Training with GPU acceleration:** See **[GPU Training Guide](doc/GPU_TRAINING_GUIDE.md)** for step-by-step instructions on training LSTM models with GPU acceleration for 5-15x speedup.
+
 ## GPU Acceleration (Experimental)
 
 Tesseract 5.5+ includes **experimental GPU acceleration** support via OpenCL and CUDA for improved performance on compatible hardware. GPU acceleration can provide significant speedups (up to 10x faster) for OCR operations, especially on high-resolution images and batch processing.

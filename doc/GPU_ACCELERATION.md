@@ -1,5 +1,7 @@
 # GPU Acceleration Support for Tesseract
 
+> **📚 Training LSTM models with GPU?** See the **[GPU Training Guide](GPU_TRAINING_GUIDE.md)** for complete step-by-step instructions, training examples, and optimization tips.
+
 ## Overview
 
 Tesseract now includes experimental GPU acceleration support through OpenCL and CUDA, providing significant performance improvements for OCR operations on systems with compatible GPUs.
@@ -145,6 +147,8 @@ intel_gpu_top  # For Intel GPUs
 ```
 
 For LSTM training, GPU messages appear at the start of training before model loading.
+
+**For detailed LSTM training with GPU, see:** **[GPU Training Guide](GPU_TRAINING_GUIDE.md)** - Complete guide with examples, environment variables, and optimization tips.
 
 ## Performance Considerations
 

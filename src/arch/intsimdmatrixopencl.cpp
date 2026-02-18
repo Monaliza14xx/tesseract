@@ -85,15 +85,33 @@ struct OpenCLContext {
   cl_kernel kernel = nullptr;
   bool initialized = false;
   
+  // Buffer cache to avoid repeated allocation/deallocation
+  cl_mem cached_weights_buf = nullptr;
+  cl_mem cached_input_buf = nullptr;
+  cl_mem cached_output_buf = nullptr;
+  cl_mem cached_scales_buf = nullptr;
+  size_t cached_weights_size = 0;
+  size_t cached_input_size = 0;
+  size_t cached_output_size = 0;
+  size_t cached_scales_size = 0;
+  
   ~OpenCLContext() {
     cleanup();
   }
   
   void cleanup() {
+    if (cached_weights_buf) clReleaseMemObject(cached_weights_buf);
+    if (cached_input_buf) clReleaseMemObject(cached_input_buf);
+    if (cached_output_buf) clReleaseMemObject(cached_output_buf);
+    if (cached_scales_buf) clReleaseMemObject(cached_scales_buf);
     if (kernel) clReleaseKernel(kernel);
     if (program) clReleaseProgram(program);
     if (queue) clReleaseCommandQueue(queue);
     if (context) clReleaseContext(context);
+    cached_weights_buf = nullptr;
+    cached_input_buf = nullptr;
+    cached_output_buf = nullptr;
+    cached_scales_buf = nullptr;
     kernel = nullptr;
     program = nullptr;
     queue = nullptr;
@@ -202,7 +220,7 @@ struct OpenCLContext {
 
 static OpenCLContext opencl_ctx;
 
-// OpenCL implementation of matrix-vector multiplication
+// OpenCL implementation of matrix-vector multiplication with buffer caching
 static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                  const TFloat* scales, const int8_t* u,
                                  TFloat* v) {
@@ -223,98 +241,140 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   
   cl_int err;
   
-  // Create buffers
+  // Calculate buffer sizes
   size_t weights_size = dim1 * dim2 * sizeof(int8_t);
   size_t input_size = (dim2 - 1) * sizeof(TFloat);
   size_t output_size = dim1 * sizeof(TFloat);
   size_t scales_size = dim1 * sizeof(TFloat);
   
-  cl_mem weights_buf = clCreateBuffer(opencl_ctx.context, 
-                                     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                     weights_size, const_cast<int8_t*>(wi), &err);
-  if (err != CL_SUCCESS) {
-    // Fall back to CPU implementation
-    for (int i = 0; i < dim1; ++i) {
-      const int8_t* w_row = wi + i * dim2;
-      int total = 0;
-      for (int j = 0; j < dim2 - 1; ++j) {
-        total += w_row[j] * u[j];
-      }
-      total += w_row[dim2 - 1] * INT8_MAX;
-      v[i] = static_cast<TFloat>(total) * scales[i];
+  // Reuse or create weights buffer
+  if (opencl_ctx.cached_weights_size != weights_size) {
+    if (opencl_ctx.cached_weights_buf) {
+      clReleaseMemObject(opencl_ctx.cached_weights_buf);
     }
-    return;
+    opencl_ctx.cached_weights_buf = clCreateBuffer(opencl_ctx.context, 
+                                                   CL_MEM_READ_ONLY,
+                                                   weights_size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+      tprintf("OpenCL: Failed to create weights buffer\n");
+      opencl_ctx.cached_weights_buf = nullptr;
+      opencl_ctx.cached_weights_size = 0;
+      // Fall back to CPU
+      for (int i = 0; i < dim1; ++i) {
+        const int8_t* w_row = wi + i * dim2;
+        int total = 0;
+        for (int j = 0; j < dim2 - 1; ++j) {
+          total += w_row[j] * u[j];
+        }
+        total += w_row[dim2 - 1] * INT8_MAX;
+        v[i] = static_cast<TFloat>(total) * scales[i];
+      }
+      return;
+    }
+    opencl_ctx.cached_weights_size = weights_size;
+  }
+  
+  // Reuse or create input buffer
+  if (opencl_ctx.cached_input_size != input_size) {
+    if (opencl_ctx.cached_input_buf) {
+      clReleaseMemObject(opencl_ctx.cached_input_buf);
+    }
+    opencl_ctx.cached_input_buf = clCreateBuffer(opencl_ctx.context,
+                                                 CL_MEM_READ_ONLY,
+                                                 input_size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+      tprintf("OpenCL: Failed to create input buffer\n");
+      opencl_ctx.cached_input_buf = nullptr;
+      opencl_ctx.cached_input_size = 0;
+      // Fall back to CPU
+      for (int i = 0; i < dim1; ++i) {
+        const int8_t* w_row = wi + i * dim2;
+        int total = 0;
+        for (int j = 0; j < dim2 - 1; ++j) {
+          total += w_row[j] * u[j];
+        }
+        total += w_row[dim2 - 1] * INT8_MAX;
+        v[i] = static_cast<TFloat>(total) * scales[i];
+      }
+      return;
+    }
+    opencl_ctx.cached_input_size = input_size;
+  }
+  
+  // Reuse or create output buffer
+  if (opencl_ctx.cached_output_size != output_size) {
+    if (opencl_ctx.cached_output_buf) {
+      clReleaseMemObject(opencl_ctx.cached_output_buf);
+    }
+    opencl_ctx.cached_output_buf = clCreateBuffer(opencl_ctx.context,
+                                                  CL_MEM_WRITE_ONLY,
+                                                  output_size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+      tprintf("OpenCL: Failed to create output buffer\n");
+      opencl_ctx.cached_output_buf = nullptr;
+      opencl_ctx.cached_output_size = 0;
+      // Fall back to CPU
+      for (int i = 0; i < dim1; ++i) {
+        const int8_t* w_row = wi + i * dim2;
+        int total = 0;
+        for (int j = 0; j < dim2 - 1; ++j) {
+          total += w_row[j] * u[j];
+        }
+        total += w_row[dim2 - 1] * INT8_MAX;
+        v[i] = static_cast<TFloat>(total) * scales[i];
+      }
+      return;
+    }
+    opencl_ctx.cached_output_size = output_size;
+  }
+  
+  // Reuse or create scales buffer
+  if (opencl_ctx.cached_scales_size != scales_size) {
+    if (opencl_ctx.cached_scales_buf) {
+      clReleaseMemObject(opencl_ctx.cached_scales_buf);
+    }
+    opencl_ctx.cached_scales_buf = clCreateBuffer(opencl_ctx.context,
+                                                  CL_MEM_READ_ONLY,
+                                                  scales_size, nullptr, &err);
+    if (err != CL_SUCCESS) {
+      tprintf("OpenCL: Failed to create scales buffer\n");
+      opencl_ctx.cached_scales_buf = nullptr;
+      opencl_ctx.cached_scales_size = 0;
+      // Fall back to CPU
+      for (int i = 0; i < dim1; ++i) {
+        const int8_t* w_row = wi + i * dim2;
+        int total = 0;
+        for (int j = 0; j < dim2 - 1; ++j) {
+          total += w_row[j] * u[j];
+        }
+        total += w_row[dim2 - 1] * INT8_MAX;
+        v[i] = static_cast<TFloat>(total) * scales[i];
+      }
+      return;
+    }
+    opencl_ctx.cached_scales_size = scales_size;
   }
   
   // Convert int8 input to float for OpenCL kernel
-  std::vector<TFloat> u_float(dim2 - 1);  // Exclude bias
+  std::vector<TFloat> u_float(dim2 - 1);
   for (int i = 0; i < dim2 - 1; i++) {
     u_float[i] = static_cast<TFloat>(u[i]);
   }
   
-  cl_mem input_buf = clCreateBuffer(opencl_ctx.context,
-                                   CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                   input_size, u_float.data(), &err);
-  if (err != CL_SUCCESS) {
-    clReleaseMemObject(weights_buf);
-    // Fall back to CPU implementation
-    for (int i = 0; i < dim1; ++i) {
-      const int8_t* w_row = wi + i * dim2;
-      int total = 0;
-      for (int j = 0; j < dim2 - 1; ++j) {
-        total += w_row[j] * u[j];
-      }
-      total += w_row[dim2 - 1] * INT8_MAX;
-      v[i] = static_cast<TFloat>(total) * scales[i];
-    }
-    return;
-  }
-  
-  cl_mem output_buf = clCreateBuffer(opencl_ctx.context,
-                                    CL_MEM_WRITE_ONLY,
-                                    output_size, nullptr, &err);
-  if (err != CL_SUCCESS) {
-    clReleaseMemObject(weights_buf);
-    clReleaseMemObject(input_buf);
-    // Fall back to CPU implementation
-    for (int i = 0; i < dim1; ++i) {
-      const int8_t* w_row = wi + i * dim2;
-      int total = 0;
-      for (int j = 0; j < dim2 - 1; ++j) {
-        total += w_row[j] * u[j];
-      }
-      total += w_row[dim2 - 1] * INT8_MAX;
-      v[i] = static_cast<TFloat>(total) * scales[i];
-    }
-    return;
-  }
-  
-  cl_mem scales_buf = clCreateBuffer(opencl_ctx.context,
-                                    CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                    scales_size, const_cast<TFloat*>(scales), &err);
-  if (err != CL_SUCCESS) {
-    clReleaseMemObject(weights_buf);
-    clReleaseMemObject(input_buf);
-    clReleaseMemObject(output_buf);
-    // Fall back to CPU implementation
-    for (int i = 0; i < dim1; ++i) {
-      const int8_t* w_row = wi + i * dim2;
-      int total = 0;
-      for (int j = 0; j < dim2 - 1; ++j) {
-        total += w_row[j] * u[j];
-      }
-      total += w_row[dim2 - 1] * INT8_MAX;
-      v[i] = static_cast<TFloat>(total) * scales[i];
-    }
-    return;
-  }
+  // Transfer data to GPU
+  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_weights_buf, CL_FALSE, 0,
+                      weights_size, wi, 0, nullptr, nullptr);
+  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_input_buf, CL_FALSE, 0,
+                      input_size, u_float.data(), 0, nullptr, nullptr);
+  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_scales_buf, CL_FALSE, 0,
+                      scales_size, scales, 0, nullptr, nullptr);
   
   // Set kernel arguments
-  int num_inputs = dim2 - 1;  // Exclude bias from input count
-  clSetKernelArg(opencl_ctx.kernel, 0, sizeof(cl_mem), &weights_buf);
-  clSetKernelArg(opencl_ctx.kernel, 1, sizeof(cl_mem), &input_buf);
-  clSetKernelArg(opencl_ctx.kernel, 2, sizeof(cl_mem), &output_buf);
-  clSetKernelArg(opencl_ctx.kernel, 3, sizeof(cl_mem), &scales_buf);
+  int num_inputs = dim2 - 1;
+  clSetKernelArg(opencl_ctx.kernel, 0, sizeof(cl_mem), &opencl_ctx.cached_weights_buf);
+  clSetKernelArg(opencl_ctx.kernel, 1, sizeof(cl_mem), &opencl_ctx.cached_input_buf);
+  clSetKernelArg(opencl_ctx.kernel, 2, sizeof(cl_mem), &opencl_ctx.cached_output_buf);
+  clSetKernelArg(opencl_ctx.kernel, 3, sizeof(cl_mem), &opencl_ctx.cached_scales_buf);
   clSetKernelArg(opencl_ctx.kernel, 4, sizeof(int), &num_inputs);
   clSetKernelArg(opencl_ctx.kernel, 5, sizeof(int), &dim1);
   clSetKernelArg(opencl_ctx.kernel, 6, sizeof(int), &dim2);
@@ -324,16 +384,17 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   err = clEnqueueNDRangeKernel(opencl_ctx.queue, opencl_ctx.kernel, 1,
                                nullptr, &global_work_size, nullptr,
                                0, nullptr, nullptr);
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Kernel execution failed (error %d)\n", err);
+  }
   
-  // Read results
-  clEnqueueReadBuffer(opencl_ctx.queue, output_buf, CL_TRUE, 0,
+  // Read results back
+  clEnqueueReadBuffer(opencl_ctx.queue, opencl_ctx.cached_output_buf, CL_FALSE, 0,
                      output_size, v, 0, nullptr, nullptr);
   
-  // Cleanup
-  clReleaseMemObject(weights_buf);
-  clReleaseMemObject(input_buf);
-  clReleaseMemObject(output_buf);
-  clReleaseMemObject(scales_buf);
+  // CRITICAL: Wait for all operations to complete
+  // Without this, GPU work may not finish before next iteration
+  clFinish(opencl_ctx.queue);
 }
 
 const IntSimdMatrix IntSimdMatrix::intSimdMatrixOpenCL = {

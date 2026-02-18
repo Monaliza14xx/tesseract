@@ -138,6 +138,13 @@ static void PrintVersionInfo() {
     printf(" Found SSE4.1\n");
   }
 #endif
+  // GPU acceleration features
+  if (tesseract::SIMDDetect::IsOpenCLAvailable()) {
+    printf(" Found OpenCL\n");
+  }
+  if (tesseract::SIMDDetect::IsCUDAAvailable()) {
+    printf(" Found CUDA\n");
+  }
 #ifdef _OPENMP
   printf(" Found OpenMP %d\n", _OPENMP);
 #endif

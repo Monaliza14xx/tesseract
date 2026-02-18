@@ -80,10 +80,112 @@ and **[Change Log](https://github.com/tesseract-ocr/tesseract/blob/main/ChangeLo
 
 ## Installing Tesseract
 
-You can either [Install Tesseract via pre-built binary package](https://tesseract-ocr.github.io/tessdoc/Installation.html)
-or [build it from source](https://tesseract-ocr.github.io/tessdoc/Compiling.html).
+### 📦 Quick Installation (Pre-built Packages)
 
-Before building Tesseract from source, please check that your system has a compiler which is one of the [supported compilers](https://tesseract-ocr.github.io/tessdoc/supported-compilers.html).
+The fastest way to get started is using pre-built packages:
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install tesseract-ocr
+```
+
+**macOS:**
+```bash
+brew install tesseract
+```
+
+**Windows:**
+- Download installer from [UB-Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
+- Or use Chocolatey: `choco install tesseract`
+
+**Fedora/RHEL/CentOS:**
+```bash
+sudo dnf install tesseract
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S tesseract tesseract-data-eng
+```
+
+### 🔧 Building from Source
+
+For the latest features, GPU acceleration, or custom builds:
+
+**1. Install Dependencies**
+
+See **[DEPENDENCIES.md](doc/DEPENDENCIES.md)** for detailed instructions.
+
+Quick start:
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y build-essential cmake pkg-config libleptonica-dev
+
+# macOS
+brew install cmake pkg-config leptonica
+```
+
+**2. Clone and Build**
+
+Using CMake (recommended):
+```bash
+git clone https://github.com/tesseract-ocr/tesseract.git
+cd tesseract
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+sudo ldconfig  # Linux only
+```
+
+Using Autotools:
+```bash
+git clone https://github.com/tesseract-ocr/tesseract.git
+cd tesseract
+./autogen.sh
+./configure
+make -j$(nproc)
+sudo make install
+sudo ldconfig  # Linux only
+```
+
+**3. Download Language Data**
+
+```bash
+# Download to tessdata directory (adjust path as needed)
+cd /usr/local/share/tessdata  # or your tessdata path
+wget https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+```
+
+### 📚 Detailed Installation Guides
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Step-by-step installation for beginners
+- **[INSTALL_CHEATSHEET.md](INSTALL_CHEATSHEET.md)** - One-page quick reference
+- **[INSTALL.GIT.md](INSTALL.GIT.md)** - Git-specific build instructions
+- **[DEPENDENCIES.md](doc/DEPENDENCIES.md)** - Dependency installation details
+- **[Official Documentation](https://tesseract-ocr.github.io/tessdoc/Installation.html)** - Comprehensive guides
+
+### 🚀 GPU Acceleration (Optional)
+
+For improved performance on compatible hardware:
+
+```bash
+# OpenCL (cross-platform)
+cmake .. -DENABLE_OPENCL=ON
+
+# CUDA (NVIDIA GPUs only)
+cmake .. -DENABLE_CUDA=ON
+```
+
+See **[GPU_ACCELERATION.md](doc/GPU_ACCELERATION.md)** for details.
+
+### ✅ Verify Installation
+
+```bash
+tesseract --version
+tesseract --list-langs
+```
 
 ## Running Tesseract
 

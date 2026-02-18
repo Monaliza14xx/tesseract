@@ -189,14 +189,15 @@ struct OpenCLContext {
       return false;
     }
     
-    // Create command queue
+    // Create command queue with profiling enabled for performance monitoring
 #ifdef CL_VERSION_2_0
-    queue = clCreateCommandQueueWithProperties(context, device, nullptr, &err);
+    cl_queue_properties props[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+    queue = clCreateCommandQueueWithProperties(context, device, props, &err);
 #else
-    queue = clCreateCommandQueue(context, device, 0, &err);
+    queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
 #endif
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create command queue\n");
+      tprintf("OpenCL: Failed to create command queue (error %d)\n", err);
       cleanup();
       return false;
     }
@@ -315,8 +316,9 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
     if (opencl_ctx.cached_weights_buf) {
       clReleaseMemObject(opencl_ctx.cached_weights_buf);
     }
+    // Use CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR for better transfer performance
     opencl_ctx.cached_weights_buf = clCreateBuffer(opencl_ctx.context, 
-                                                   CL_MEM_READ_ONLY,
+                                                   CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                    weights_size, nullptr, &err);
     if (err != CL_SUCCESS) {
       tprintf("OpenCL: Failed to create weights buffer (error %d)\n", err);
@@ -345,10 +347,10 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
       clReleaseMemObject(opencl_ctx.cached_input_buf);
     }
     opencl_ctx.cached_input_buf = clCreateBuffer(opencl_ctx.context,
-                                                 CL_MEM_READ_ONLY,
+                                                 CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                  input_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create input buffer\n");
+      tprintf("OpenCL: Failed to create input buffer (error %d)\n", err);
       opencl_ctx.cached_input_buf = nullptr;
       opencl_ctx.cached_input_size = 0;
       // Fall back to CPU
@@ -372,10 +374,10 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
       clReleaseMemObject(opencl_ctx.cached_output_buf);
     }
     opencl_ctx.cached_output_buf = clCreateBuffer(opencl_ctx.context,
-                                                  CL_MEM_WRITE_ONLY,
+                                                  CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                   output_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create output buffer\n");
+      tprintf("OpenCL: Failed to create output buffer (error %d)\n", err);
       opencl_ctx.cached_output_buf = nullptr;
       opencl_ctx.cached_output_size = 0;
       // Fall back to CPU
@@ -399,10 +401,10 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
       clReleaseMemObject(opencl_ctx.cached_scales_buf);
     }
     opencl_ctx.cached_scales_buf = clCreateBuffer(opencl_ctx.context,
-                                                  CL_MEM_READ_ONLY,
+                                                  CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                   scales_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create scales buffer\n");
+      tprintf("OpenCL: Failed to create scales buffer (error %d)\n", err);
       opencl_ctx.cached_scales_buf = nullptr;
       opencl_ctx.cached_scales_size = 0;
       // Fall back to CPU
@@ -458,19 +460,34 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   
   // Set kernel arguments
   int num_inputs = dim2 - 1;
-  clSetKernelArg(opencl_ctx.kernel, 0, sizeof(cl_mem), &opencl_ctx.cached_weights_buf);
-  clSetKernelArg(opencl_ctx.kernel, 1, sizeof(cl_mem), &opencl_ctx.cached_input_buf);
-  clSetKernelArg(opencl_ctx.kernel, 2, sizeof(cl_mem), &opencl_ctx.cached_output_buf);
-  clSetKernelArg(opencl_ctx.kernel, 3, sizeof(cl_mem), &opencl_ctx.cached_scales_buf);
-  clSetKernelArg(opencl_ctx.kernel, 4, sizeof(int), &num_inputs);
-  clSetKernelArg(opencl_ctx.kernel, 5, sizeof(int), &dim1);
-  clSetKernelArg(opencl_ctx.kernel, 6, sizeof(int), &dim2);
+  err = clSetKernelArg(opencl_ctx.kernel, 0, sizeof(cl_mem), &opencl_ctx.cached_weights_buf);
+  err |= clSetKernelArg(opencl_ctx.kernel, 1, sizeof(cl_mem), &opencl_ctx.cached_input_buf);
+  err |= clSetKernelArg(opencl_ctx.kernel, 2, sizeof(cl_mem), &opencl_ctx.cached_output_buf);
+  err |= clSetKernelArg(opencl_ctx.kernel, 3, sizeof(cl_mem), &opencl_ctx.cached_scales_buf);
+  err |= clSetKernelArg(opencl_ctx.kernel, 4, sizeof(int), &num_inputs);
+  err |= clSetKernelArg(opencl_ctx.kernel, 5, sizeof(int), &dim1);
+  err |= clSetKernelArg(opencl_ctx.kernel, 6, sizeof(int), &dim2);
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Failed to set kernel arguments (error %d)\n", err);
+    return;
+  }
   
-  // Execute kernel
+  // Execute kernel with event for profiling
+  // Calculate optimal local work size (64 is typical for GPUs)
   size_t global_work_size = dim1;
+  size_t local_work_size = 64;
+  // Adjust if global size not divisible by local size
+  if (global_work_size < local_work_size) {
+    local_work_size = global_work_size;
+  } else {
+    // Round up global size to be divisible by local size
+    global_work_size = ((global_work_size + local_work_size - 1) / local_work_size) * local_work_size;
+  }
+  
+  cl_event kernel_event;
   err = clEnqueueNDRangeKernel(opencl_ctx.queue, opencl_ctx.kernel, 1,
-                               nullptr, &global_work_size, nullptr,
-                               0, nullptr, nullptr);
+                               nullptr, &global_work_size, &local_work_size,
+                               0, nullptr, &kernel_event);
   if (err != CL_SUCCESS) {
     tprintf("OpenCL: Kernel execution failed (error %d)\n", err);
     return;
@@ -480,11 +497,13 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
     tprintf("OpenCL: Reading results back from GPU...\n");
   }
   
-  // Read results back
+  // Read results back with event
+  cl_event read_event;
   err = clEnqueueReadBuffer(opencl_ctx.queue, opencl_ctx.cached_output_buf, CL_FALSE, 0,
-                     output_size, v, 0, nullptr, nullptr);
+                     output_size, v, 0, nullptr, &read_event);
   if (err != CL_SUCCESS) {
     tprintf("OpenCL: Failed to read output buffer (error %d)\n", err);
+    clReleaseEvent(kernel_event);
     return;
   }
   
@@ -493,12 +512,26 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   err = clFinish(opencl_ctx.queue);
   if (err != CL_SUCCESS) {
     tprintf("OpenCL: clFinish failed (error %d)\n", err);
+    clReleaseEvent(kernel_event);
+    clReleaseEvent(read_event);
     return;
   }
   
+  // Get kernel execution time for profiling
   if (log_this_call) {
+    cl_ulong time_start, time_end;
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, 
+                           sizeof(time_start), &time_start, nullptr);
+    clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END,
+                           sizeof(time_end), &time_end, nullptr);
+    double gpu_time_ms = (time_end - time_start) / 1000000.0;
+    tprintf("OpenCL: Kernel execution time: %.3f ms (GPU actively used)\n", gpu_time_ms);
     tprintf("OpenCL: Operation completed successfully\n");
   }
+  
+  // Clean up events
+  clReleaseEvent(kernel_event);
+  clReleaseEvent(read_event);
 }
 
 const IntSimdMatrix IntSimdMatrix::intSimdMatrixOpenCL = {

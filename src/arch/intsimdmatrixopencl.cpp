@@ -95,6 +95,10 @@ struct OpenCLContext {
   size_t cached_output_size = 0;
   size_t cached_scales_size = 0;
   
+  // Debug counters
+  int call_count = 0;
+  bool verbose_mode = false;
+  
   ~OpenCLContext() {
     cleanup();
   }
@@ -122,22 +126,58 @@ struct OpenCLContext {
   bool init() {
     if (initialized) return true;
     
+    // Check for verbose mode via environment variable
+    const char* verbose_env = getenv("TESSERACT_OPENCL_VERBOSE");
+    verbose_mode = (verbose_env != nullptr && verbose_env[0] == '1');
+    
     cl_int err;
+    
+    if (verbose_mode) {
+      tprintf("OpenCL: Initialization starting...\n");
+    }
     
     // Get platform
     err = clGetPlatformIDs(1, &platform, nullptr);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to get platform ID\n");
+      tprintf("OpenCL: Failed to get platform ID (error %d)\n", err);
       return false;
     }
     
-    // Get device
-    err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, nullptr);
+    if (verbose_mode) {
+      char platform_name[256] = "";
+      clGetPlatformInfo(platform, CL_PLATFORM_NAME, sizeof(platform_name), platform_name, nullptr);
+      tprintf("OpenCL: Platform: %s\n", platform_name);
+    }
+    
+    // Check environment variable for device preference
+    const char* device_env = getenv("TESSERACT_OPENCL_DEVICE");
+    cl_device_type preferred_type = CL_DEVICE_TYPE_GPU;
+    if (device_env) {
+      if (strstr(device_env, "CPU")) {
+        preferred_type = CL_DEVICE_TYPE_CPU;
+        if (verbose_mode) {
+          tprintf("OpenCL: Environment requests CPU device\n");
+        }
+      } else {
+        if (verbose_mode) {
+          tprintf("OpenCL: Environment requests GPU device\n");
+        }
+      }
+    }
+    
+    // Get device - try preferred type first
+    err = clGetDeviceIDs(platform, preferred_type, 1, &device, nullptr);
     if (err != CL_SUCCESS) {
-      // Try CPU if GPU not available
-      err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, nullptr);
+      if (verbose_mode) {
+        tprintf("OpenCL: Preferred device type not available, trying fallback\n");
+      }
+      // Try opposite type as fallback
+      cl_device_type fallback_type = (preferred_type == CL_DEVICE_TYPE_GPU) 
+                                     ? CL_DEVICE_TYPE_CPU 
+                                     : CL_DEVICE_TYPE_GPU;
+      err = clGetDeviceIDs(platform, fallback_type, 1, &device, nullptr);
       if (err != CL_SUCCESS) {
-        tprintf("OpenCL: Failed to get device ID\n");
+        tprintf("OpenCL: Failed to get any device (error %d)\n", err);
         return false;
       }
     }
@@ -224,7 +264,21 @@ static OpenCLContext opencl_ctx;
 static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                  const TFloat* scales, const int8_t* u,
                                  TFloat* v) {
+  // Increment call counter
+  opencl_ctx.call_count++;
+  
+  // Log first few calls for debugging
+  bool log_this_call = (opencl_ctx.call_count <= 3) || opencl_ctx.verbose_mode;
+  
+  if (log_this_call) {
+    tprintf("OpenCL: MatrixDotVector call #%d (dim1=%d, dim2=%d)\n",
+            opencl_ctx.call_count, dim1, dim2);
+  }
+  
   if (!opencl_ctx.init()) {
+    if (log_this_call) {
+      tprintf("OpenCL: Initialization failed, falling back to CPU\n");
+    }
     // Fall back to generic CPU implementation
     for (int i = 0; i < dim1; ++i) {
       const int8_t* w_row = wi + i * dim2;
@@ -247,8 +301,17 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   size_t output_size = dim1 * sizeof(TFloat);
   size_t scales_size = dim1 * sizeof(TFloat);
   
+  if (log_this_call) {
+    tprintf("OpenCL: Buffer sizes: weights=%zu, input=%zu, output=%zu, scales=%zu bytes\n",
+            weights_size, input_size, output_size, scales_size);
+  }
+  
   // Reuse or create weights buffer
   if (opencl_ctx.cached_weights_size != weights_size) {
+    if (log_this_call) {
+      tprintf("OpenCL: Creating new weights buffer (%zu -> %zu bytes)\n",
+              opencl_ctx.cached_weights_size, weights_size);
+    }
     if (opencl_ctx.cached_weights_buf) {
       clReleaseMemObject(opencl_ctx.cached_weights_buf);
     }
@@ -256,7 +319,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                                    CL_MEM_READ_ONLY,
                                                    weights_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create weights buffer\n");
+      tprintf("OpenCL: Failed to create weights buffer (error %d)\n", err);
       opencl_ctx.cached_weights_buf = nullptr;
       opencl_ctx.cached_weights_size = 0;
       // Fall back to CPU
@@ -272,6 +335,8 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
       return;
     }
     opencl_ctx.cached_weights_size = weights_size;
+  } else if (log_this_call) {
+    tprintf("OpenCL: Reusing weights buffer (%zu bytes)\n", weights_size);
   }
   
   // Reuse or create input buffer
@@ -361,13 +426,35 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
     u_float[i] = static_cast<TFloat>(u[i]);
   }
   
+  if (log_this_call) {
+    tprintf("OpenCL: Transferring data to GPU...\n");
+  }
+  
   // Transfer data to GPU
-  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_weights_buf, CL_FALSE, 0,
+  err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_weights_buf, CL_FALSE, 0,
                       weights_size, wi, 0, nullptr, nullptr);
-  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_input_buf, CL_FALSE, 0,
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Failed to write weights buffer (error %d)\n", err);
+    return;
+  }
+  
+  err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_input_buf, CL_FALSE, 0,
                       input_size, u_float.data(), 0, nullptr, nullptr);
-  clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_scales_buf, CL_FALSE, 0,
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Failed to write input buffer (error %d)\n", err);
+    return;
+  }
+  
+  err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_scales_buf, CL_FALSE, 0,
                       scales_size, scales, 0, nullptr, nullptr);
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Failed to write scales buffer (error %d)\n", err);
+    return;
+  }
+  
+  if (log_this_call) {
+    tprintf("OpenCL: Setting kernel arguments and executing...\n");
+  }
   
   // Set kernel arguments
   int num_inputs = dim2 - 1;
@@ -386,15 +473,32 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                0, nullptr, nullptr);
   if (err != CL_SUCCESS) {
     tprintf("OpenCL: Kernel execution failed (error %d)\n", err);
+    return;
+  }
+  
+  if (log_this_call) {
+    tprintf("OpenCL: Reading results back from GPU...\n");
   }
   
   // Read results back
-  clEnqueueReadBuffer(opencl_ctx.queue, opencl_ctx.cached_output_buf, CL_FALSE, 0,
+  err = clEnqueueReadBuffer(opencl_ctx.queue, opencl_ctx.cached_output_buf, CL_FALSE, 0,
                      output_size, v, 0, nullptr, nullptr);
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: Failed to read output buffer (error %d)\n", err);
+    return;
+  }
   
   // CRITICAL: Wait for all operations to complete
   // Without this, GPU work may not finish before next iteration
-  clFinish(opencl_ctx.queue);
+  err = clFinish(opencl_ctx.queue);
+  if (err != CL_SUCCESS) {
+    tprintf("OpenCL: clFinish failed (error %d)\n", err);
+    return;
+  }
+  
+  if (log_this_call) {
+    tprintf("OpenCL: Operation completed successfully\n");
+  }
 }
 
 const IntSimdMatrix IntSimdMatrix::intSimdMatrixOpenCL = {

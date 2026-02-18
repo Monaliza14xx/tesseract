@@ -435,6 +435,50 @@ Typical GPU memory requirements:
 
 ## Troubleshooting
 
+### Issue: GPU Shows 0% Utilization Despite OpenCL Message
+
+**Symptoms:**
+- Training log shows "Using OpenCL GPU acceleration for matrix operations"
+- nvidia-smi shows 0% GPU utilization
+- GPU memory usage stays at ~3 MiB
+- Training runs at CPU speed
+
+**Root Cause:**
+This usually indicates the model is using float32 weights instead of int8 quantized weights. GPU acceleration only works with int8 quantization.
+
+**Solutions:**
+
+1. **Use fine-tuning (recommended):**
+   ```bash
+   # Fine-tuning automatically converts to int8
+   lstmtraining --continue_from existing_model.traineddata ...
+   ```
+
+2. **Ensure int8 conversion:**
+   - When fine-tuning: Automatic int8 conversion happens
+   - When training from scratch: Model needs int8 conversion
+
+3. **Increase batch size:**
+   ```bash
+   # Higher batch size improves GPU utilization
+   --batch_size 500  # Minimum 300 recommended for GPU
+   ```
+
+4. **Verify model is using int8:**
+   - Look for "Total weights" message in training log
+   - GPU only activates for int8 quantized models
+
+5. **Use latest Tesseract build:**
+   ```bash
+   # Older versions had a critical GPU performance bug
+   # Rebuild from latest source to get fix
+   ```
+
+**Expected Results After Fix:**
+- GPU utilization: 70-90%
+- GPU memory: 2-8 GB (depending on model size)
+- Training speed: 5-15x faster than CPU
+
 ### Issue: No GPU Messages in Training Log
 
 **Symptoms:**

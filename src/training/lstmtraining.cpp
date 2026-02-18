@@ -68,9 +68,9 @@ static BOOL_PARAM_FLAG(randomly_rotate, false,
 static INT_PARAM_FLAG(batch_size, 100,
                      "Number of training samples to process per batch. "
                      "Larger values (200-1000) can improve GPU training speed.");
-
-// Number of training images to train between calls to MaintainCheckpoints.
-const int kNumPagesPerBatch = 100;
+static INT_PARAM_FLAG(checkpoint_interval, 100,
+                     "Number of training iterations between checkpoint saves. "
+                     "Controls how frequently progress is saved during training.");
 
 // Apart from command-line flags, input is a collection of lstmf files, that
 // were previously created using tesseract with the lstm.train config file.
@@ -222,8 +222,8 @@ int main(int argc, char **argv) {
   do {
     // Train a few.
     int iteration = trainer.training_iteration();
-    int batch_size = FLAGS_batch_size > 0 ? FLAGS_batch_size : kNumPagesPerBatch;
-    for (int target_iteration = iteration + batch_size;
+    int checkpoint_interval = FLAGS_checkpoint_interval > 0 ? FLAGS_checkpoint_interval : 100;
+    for (int target_iteration = iteration + checkpoint_interval;
          iteration < target_iteration && iteration < max_iterations;
          iteration = trainer.training_iteration()) {
       trainer.TrainOnLine(&trainer, false);

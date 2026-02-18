@@ -221,7 +221,7 @@ struct OpenCLContext {
       std::vector<char> log(log_size);
       clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 
                            log_size, log.data(), nullptr);
-      fprintf(stderr, "OpenCL: Build failed:\n%s\n", log.data(); fflush(stderr));
+      fprintf(stderr, "OpenCL: Build failed:\n%s\n", log.data()); fflush(stderr);
       cleanup();
       return false;
     }
@@ -253,7 +253,7 @@ struct OpenCLContext {
     fprintf(stderr, "OpenCL: Successfully initialized on %s device: %s (%.1f GB)\n",
             dev_type_str,
             device_name,
-            mem_size / (1024.0 * 1024.0 * 1024.0); fflush(stderr));
+            mem_size / (1024.0 * 1024.0 * 1024.0)); fflush(stderr);
     
     return true;
   }

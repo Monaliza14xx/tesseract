@@ -23,6 +23,8 @@
 #endif
 
 #include <cmath>
+#include <cstdlib>             // for getenv
+#include <cstring>             // for strcmp, strlen
 #include <iomanip>             // for std::setprecision
 #include <locale>              // for std::locale::classic
 #include <string>
@@ -112,10 +114,24 @@ bool LSTMTrainer::TryLoadingCheckpoint(const char *filename,
     return false;
   }
   if (IsIntMode()) {
-    tprintf("Error, %s is an integer (fast) model, cannot continue training\n",
-            filename);
-    return false;
+    tprintf("Warning: %s is already an int8 (fast) model\n", filename);
+    tprintf("Int8 models support GPU acceleration.\n");
+    // Allow training to continue with int8 models for GPU support
   }
+  
+  // Check if GPU acceleration is requested via environment variable
+  const char* use_gpu = getenv("USE_GPU");
+  const char* opencl_device = getenv("TESSERACT_OPENCL_DEVICE");
+  bool gpu_requested = (use_gpu != nullptr && strcmp(use_gpu, "1") == 0) ||
+                       (opencl_device != nullptr && strlen(opencl_device) > 0);
+  
+  // Auto-convert to int8 for GPU acceleration if requested and model is float32
+  if (gpu_requested && !IsIntMode()) {
+    tprintf("GPU acceleration requested - converting model to int8 for GPU support...\n");
+    ConvertToInt();
+    tprintf("Model converted to int8. GPU acceleration is now available.\n");
+  }
+  
   if (((old_traineddata == nullptr || *old_traineddata == '\0') &&
        network_->NumOutputs() == recoder_.code_range()) ||
       filename == old_traineddata) {

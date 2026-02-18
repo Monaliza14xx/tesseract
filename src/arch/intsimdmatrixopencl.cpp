@@ -133,20 +133,20 @@ struct OpenCLContext {
     cl_int err;
     
     if (verbose_mode) {
-      tprintf("OpenCL: Initialization starting...\n");
+      fprintf(stderr, "OpenCL: Initialization starting...\n"); fflush(stderr);
     }
     
     // Get platform
     err = clGetPlatformIDs(1, &platform, nullptr);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to get platform ID (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to get platform ID (error %d)\n", err); fflush(stderr);
       return false;
     }
     
     if (verbose_mode) {
       char platform_name[256] = "";
       clGetPlatformInfo(platform, CL_PLATFORM_NAME, sizeof(platform_name), platform_name, nullptr);
-      tprintf("OpenCL: Platform: %s\n", platform_name);
+      fprintf(stderr, "OpenCL: Platform: %s\n", platform_name); fflush(stderr);
     }
     
     // Check environment variable for device preference
@@ -156,11 +156,11 @@ struct OpenCLContext {
       if (strstr(device_env, "CPU")) {
         preferred_type = CL_DEVICE_TYPE_CPU;
         if (verbose_mode) {
-          tprintf("OpenCL: Environment requests CPU device\n");
+          fprintf(stderr, "OpenCL: Environment requests CPU device\n"); fflush(stderr);
         }
       } else {
         if (verbose_mode) {
-          tprintf("OpenCL: Environment requests GPU device\n");
+          fprintf(stderr, "OpenCL: Environment requests GPU device\n"); fflush(stderr);
         }
       }
     }
@@ -169,7 +169,7 @@ struct OpenCLContext {
     err = clGetDeviceIDs(platform, preferred_type, 1, &device, nullptr);
     if (err != CL_SUCCESS) {
       if (verbose_mode) {
-        tprintf("OpenCL: Preferred device type not available, trying fallback\n");
+        fprintf(stderr, "OpenCL: Preferred device type not available, trying fallback\n"); fflush(stderr);
       }
       // Try opposite type as fallback
       cl_device_type fallback_type = (preferred_type == CL_DEVICE_TYPE_GPU) 
@@ -177,7 +177,7 @@ struct OpenCLContext {
                                      : CL_DEVICE_TYPE_GPU;
       err = clGetDeviceIDs(platform, fallback_type, 1, &device, nullptr);
       if (err != CL_SUCCESS) {
-        tprintf("OpenCL: Failed to get any device (error %d)\n", err);
+        fprintf(stderr, "OpenCL: Failed to get any device (error %d)\n", err); fflush(stderr);
         return false;
       }
     }
@@ -185,7 +185,7 @@ struct OpenCLContext {
     // Create context
     context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create context\n");
+      fprintf(stderr, "OpenCL: Failed to create context\n"); fflush(stderr);
       return false;
     }
     
@@ -197,7 +197,7 @@ struct OpenCLContext {
     queue = clCreateCommandQueue(context, device, CL_QUEUE_PROFILING_ENABLE, &err);
 #endif
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create command queue (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to create command queue (error %d)\n", err); fflush(stderr);
       cleanup();
       return false;
     }
@@ -207,7 +207,7 @@ struct OpenCLContext {
     program = clCreateProgramWithSource(context, 1, &opencl_kernel_source, 
                                        &source_len, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create program\n");
+      fprintf(stderr, "OpenCL: Failed to create program\n"); fflush(stderr);
       cleanup();
       return false;
     }
@@ -221,7 +221,7 @@ struct OpenCLContext {
       std::vector<char> log(log_size);
       clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 
                            log_size, log.data(), nullptr);
-      tprintf("OpenCL: Build failed:\n%s\n", log.data());
+      fprintf(stderr, "OpenCL: Build failed:\n%s\n", log.data(); fflush(stderr));
       cleanup();
       return false;
     }
@@ -229,7 +229,7 @@ struct OpenCLContext {
     // Create kernel
     kernel = clCreateKernel(program, "matmul_int8", &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create kernel\n");
+      fprintf(stderr, "OpenCL: Failed to create kernel\n"); fflush(stderr);
       cleanup();
       return false;
     }
@@ -250,10 +250,10 @@ struct OpenCLContext {
     const char* dev_type_str = (dev_type == CL_DEVICE_TYPE_GPU) ? "GPU" : "CPU";
     
     // Log success with device information
-    tprintf("OpenCL: Successfully initialized on %s device: %s (%.1f GB)\n",
+    fprintf(stderr, "OpenCL: Successfully initialized on %s device: %s (%.1f GB)\n",
             dev_type_str,
             device_name,
-            mem_size / (1024.0 * 1024.0 * 1024.0));
+            mem_size / (1024.0 * 1024.0 * 1024.0); fflush(stderr));
     
     return true;
   }
@@ -272,13 +272,13 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   bool log_this_call = (opencl_ctx.call_count <= 3) || opencl_ctx.verbose_mode;
   
   if (log_this_call) {
-    tprintf("OpenCL: MatrixDotVector call #%d (dim1=%d, dim2=%d)\n",
-            opencl_ctx.call_count, dim1, dim2);
+    fprintf(stderr, "OpenCL: MatrixDotVector call #%d (dim1=%d, dim2=%d)\n",
+            opencl_ctx.call_count, dim1, dim2); fflush(stderr);
   }
   
   if (!opencl_ctx.init()) {
     if (log_this_call) {
-      tprintf("OpenCL: Initialization failed, falling back to CPU\n");
+      fprintf(stderr, "OpenCL: Initialization failed, falling back to CPU\n"); fflush(stderr);
     }
     // Fall back to generic CPU implementation
     for (int i = 0; i < dim1; ++i) {
@@ -303,15 +303,15 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   size_t scales_size = dim1 * sizeof(TFloat);
   
   if (log_this_call) {
-    tprintf("OpenCL: Buffer sizes: weights=%zu, input=%zu, output=%zu, scales=%zu bytes\n",
-            weights_size, input_size, output_size, scales_size);
+    fprintf(stderr, "OpenCL: Buffer sizes: weights=%zu, input=%zu, output=%zu, scales=%zu bytes\n",
+            weights_size, input_size, output_size, scales_size); fflush(stderr);
   }
   
   // Reuse or create weights buffer
   if (opencl_ctx.cached_weights_size != weights_size) {
     if (log_this_call) {
-      tprintf("OpenCL: Creating new weights buffer (%zu -> %zu bytes)\n",
-              opencl_ctx.cached_weights_size, weights_size);
+      fprintf(stderr, "OpenCL: Creating new weights buffer (%zu -> %zu bytes)\n",
+              opencl_ctx.cached_weights_size, weights_size); fflush(stderr);
     }
     if (opencl_ctx.cached_weights_buf) {
       clReleaseMemObject(opencl_ctx.cached_weights_buf);
@@ -321,7 +321,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                                    CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                    weights_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create weights buffer (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to create weights buffer (error %d)\n", err); fflush(stderr);
       opencl_ctx.cached_weights_buf = nullptr;
       opencl_ctx.cached_weights_size = 0;
       // Fall back to CPU
@@ -338,7 +338,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
     }
     opencl_ctx.cached_weights_size = weights_size;
   } else if (log_this_call) {
-    tprintf("OpenCL: Reusing weights buffer (%zu bytes)\n", weights_size);
+    fprintf(stderr, "OpenCL: Reusing weights buffer (%zu bytes)\n", weights_size); fflush(stderr);
   }
   
   // Reuse or create input buffer
@@ -350,7 +350,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                                  CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                  input_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create input buffer (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to create input buffer (error %d)\n", err); fflush(stderr);
       opencl_ctx.cached_input_buf = nullptr;
       opencl_ctx.cached_input_size = 0;
       // Fall back to CPU
@@ -377,7 +377,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                                   CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                   output_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create output buffer (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to create output buffer (error %d)\n", err); fflush(stderr);
       opencl_ctx.cached_output_buf = nullptr;
       opencl_ctx.cached_output_size = 0;
       // Fall back to CPU
@@ -404,7 +404,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                                   CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR,
                                                   scales_size, nullptr, &err);
     if (err != CL_SUCCESS) {
-      tprintf("OpenCL: Failed to create scales buffer (error %d)\n", err);
+      fprintf(stderr, "OpenCL: Failed to create scales buffer (error %d)\n", err); fflush(stderr);
       opencl_ctx.cached_scales_buf = nullptr;
       opencl_ctx.cached_scales_size = 0;
       // Fall back to CPU
@@ -429,33 +429,33 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   }
   
   if (log_this_call) {
-    tprintf("OpenCL: Transferring data to GPU...\n");
+    fprintf(stderr, "OpenCL: Transferring data to GPU...\n"); fflush(stderr);
   }
   
   // Transfer data to GPU
   err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_weights_buf, CL_FALSE, 0,
                       weights_size, wi, 0, nullptr, nullptr);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Failed to write weights buffer (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Failed to write weights buffer (error %d)\n", err); fflush(stderr);
     return;
   }
   
   err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_input_buf, CL_FALSE, 0,
                       input_size, u_float.data(), 0, nullptr, nullptr);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Failed to write input buffer (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Failed to write input buffer (error %d)\n", err); fflush(stderr);
     return;
   }
   
   err = clEnqueueWriteBuffer(opencl_ctx.queue, opencl_ctx.cached_scales_buf, CL_FALSE, 0,
                       scales_size, scales, 0, nullptr, nullptr);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Failed to write scales buffer (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Failed to write scales buffer (error %d)\n", err); fflush(stderr);
     return;
   }
   
   if (log_this_call) {
-    tprintf("OpenCL: Setting kernel arguments and executing...\n");
+    fprintf(stderr, "OpenCL: Setting kernel arguments and executing...\n"); fflush(stderr);
   }
   
   // Set kernel arguments
@@ -468,7 +468,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   err |= clSetKernelArg(opencl_ctx.kernel, 5, sizeof(int), &dim1);
   err |= clSetKernelArg(opencl_ctx.kernel, 6, sizeof(int), &dim2);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Failed to set kernel arguments (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Failed to set kernel arguments (error %d)\n", err); fflush(stderr);
     return;
   }
   
@@ -489,12 +489,12 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
                                nullptr, &global_work_size, &local_work_size,
                                0, nullptr, &kernel_event);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Kernel execution failed (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Kernel execution failed (error %d)\n", err); fflush(stderr);
     return;
   }
   
   if (log_this_call) {
-    tprintf("OpenCL: Reading results back from GPU...\n");
+    fprintf(stderr, "OpenCL: Reading results back from GPU...\n"); fflush(stderr);
   }
   
   // Read results back with event
@@ -502,7 +502,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   err = clEnqueueReadBuffer(opencl_ctx.queue, opencl_ctx.cached_output_buf, CL_FALSE, 0,
                      output_size, v, 0, nullptr, &read_event);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: Failed to read output buffer (error %d)\n", err);
+    fprintf(stderr, "OpenCL: Failed to read output buffer (error %d)\n", err); fflush(stderr);
     clReleaseEvent(kernel_event);
     return;
   }
@@ -511,7 +511,7 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
   // Without this, GPU work may not finish before next iteration
   err = clFinish(opencl_ctx.queue);
   if (err != CL_SUCCESS) {
-    tprintf("OpenCL: clFinish failed (error %d)\n", err);
+    fprintf(stderr, "OpenCL: clFinish failed (error %d)\n", err); fflush(stderr);
     clReleaseEvent(kernel_event);
     clReleaseEvent(read_event);
     return;
@@ -525,8 +525,8 @@ static void MatrixDotVectorOpenCL(int dim1, int dim2, const int8_t* wi,
     clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END,
                            sizeof(time_end), &time_end, nullptr);
     double gpu_time_ms = (time_end - time_start) / 1000000.0;
-    tprintf("OpenCL: Kernel execution time: %.3f ms (GPU actively used)\n", gpu_time_ms);
-    tprintf("OpenCL: Operation completed successfully\n");
+    fprintf(stderr, "OpenCL: Kernel execution time: %.3f ms (GPU actively used)\n", gpu_time_ms); fflush(stderr);
+    fprintf(stderr, "OpenCL: Operation completed successfully\n"); fflush(stderr);
   }
   
   // Clean up events

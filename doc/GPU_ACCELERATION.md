@@ -137,8 +137,15 @@ OpenCL: Failed to get platform ID
 **Additional verification methods:**
 
 ```bash
-# Check Tesseract version and build flags
+# Check Tesseract version and GPU support
 tesseract --version
+# Look for "Found OpenCL" or "Found CUDA" in the output to confirm GPU support is compiled in
+# Example output:
+#  Found AVX2
+#  Found AVX
+#  Found SSE4.1
+#  Found OpenCL    ← Confirms OpenCL support
+#  Found CUDA      ← Confirms CUDA support (if enabled)
 
 # Monitor GPU usage during processing
 nvidia-smi  # For NVIDIA GPUs

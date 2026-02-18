@@ -90,8 +90,17 @@ sudo ldconfig
 Check that GPU support is compiled in:
 ```bash
 tesseract --version
-# Should show: OpenCL, CUDA, or both in supported features
+# Look for "Found OpenCL" or "Found CUDA" in the output
+# Example:
+#  tesseract 5.5.2
+#  Found AVX2
+#  Found AVX
+#  Found SSE4.1
+#  Found OpenCL    ← Confirms OpenCL is available
+#  Found CUDA      ← Confirms CUDA is available (if enabled)
 ```
+
+If you don't see "Found OpenCL" or "Found CUDA", you need to rebuild Tesseract with GPU support.
 
 ### 3. Prepare Training Data
 

@@ -153,9 +153,17 @@ sudo ldconfig
 **For GPU acceleration (OpenCL or CUDA):**
 ```bash
 # OpenCL support
-cmake .. -DENABLE_OPENCL=ON
-# or
-cmake .. -DENABLE_CUDA=ON
+cmake .. -DENABLE_OPENCL=ON -DBUILD_TRAINING_TOOLS=ON
+make -j$(nproc)
+sudo make install
+
+# Verify GPU support:
+tesseract --version
+# Look for "Found OpenCL" in the output
+
+# or CUDA support (NVIDIA GPUs)
+cmake .. -DENABLE_CUDA=ON -DBUILD_TRAINING_TOOLS=ON
+# Look for "Found CUDA" in tesseract --version output
 ```
 
 See [doc/GPU_ACCELERATION.md](doc/GPU_ACCELERATION.md) for details.
@@ -188,6 +196,10 @@ sudo make training-install
 make -j$(nproc)
 sudo make install
 sudo ldconfig
+
+# Verify GPU support is compiled in:
+tesseract --version
+# Look for "Found OpenCL" in the output
 ```
 
 **Note:** Install OpenCL development files first:

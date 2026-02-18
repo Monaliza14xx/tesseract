@@ -387,11 +387,25 @@ bool WeightMatrix::DeSerializeOld(bool training, TFile *fp) {
 // Asserts that the call matches what we have.
 void WeightMatrix::MatrixDotVector(const TFloat *u, TFloat *v) const {
   assert(!int_mode_);
+  static bool first_call = true;
+  if (first_call) {
+    fprintf(stderr, "WARNING: Using float32 operations - GPU acceleration NOT available\n");
+    fprintf(stderr, "         GPU only works with int8 quantized models.\n");
+    fprintf(stderr, "         Use fine-tuning (--continue_from) with int8 models for GPU support.\n");
+    fflush(stderr);
+    first_call = false;
+  }
   MatrixDotVectorInternal(wf_, true, false, u, v);
 }
 
 void WeightMatrix::MatrixDotVector(const int8_t *u, TFloat *v) const {
   assert(int_mode_);
+  static bool first_call = true;
+  if (first_call) {
+    fprintf(stderr, "INFO: Using int8 quantized operations - GPU acceleration available\n");
+    fflush(stderr);
+    first_call = false;
+  }
   if (IntSimdMatrix::intSimdMatrix) {
     IntSimdMatrix::intSimdMatrix->matrixDotVectorFunction(wi_.dim1(), wi_.dim2(), &shaped_w_[0],
                                                           &scales_[0], u, v);
